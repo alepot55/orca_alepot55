@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { OrcaRuntimeService } from './orca-runtime'
 import { OrcaRuntimeRpcServer } from './runtime-rpc'
 import { WebSocketTransport } from './rpc/ws-transport'
@@ -36,12 +36,17 @@ describe('OrcaRuntimeRpcServer WebSocket fallback port (#15490)', () => {
     return port
   }
 
-  async function startServer(userDataPath: string, wsPort: number): Promise<number> {
+  async function startServer(
+    userDataPath: string,
+    wsPort: number,
+    preferPinnedWsPort = false
+  ): Promise<number> {
     const server = new OrcaRuntimeRpcServer({
       runtime: new OrcaRuntimeService(),
       userDataPath,
       enableWebSocket: true,
-      wsPort
+      wsPort,
+      preferPinnedWsPort
     })
     await server.start()
     cleanups.push(() => server.stop())
@@ -55,6 +60,27 @@ describe('OrcaRuntimeRpcServer WebSocket fallback port (#15490)', () => {
     const preferred = await freePort()
 
     await expect(startServer(userDataPath, preferred)).resolves.toBe(preferred)
+    expect(existsSync(join(userDataPath, FALLBACK_FILE))).toBe(false)
+  })
+
+  it('moves to a fallback port when the default port is taken', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'orca-ws-fallback-'))
+    const taken = await holdPort()
+
+    const bound = await startServer(userDataPath, taken)
+    expect(bound).not.toBe(taken)
+    expect(existsSync(join(userDataPath, FALLBACK_FILE))).toBe(true)
+  })
+
+  it('fails to start instead of moving ports when an explicit --port is taken (#26603)', async () => {
+    const userDataPath = mkdtempSync(join(tmpdir(), 'orca-ws-fallback-'))
+    const taken = await holdPort()
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    onTestFinished(() => errorSpy.mockRestore())
+
+    await expect(startServer(userDataPath, taken, true)).rejects.toThrow(
+      `Port ${taken} is unavailable`
+    )
     expect(existsSync(join(userDataPath, FALLBACK_FILE))).toBe(false)
   })
 })
