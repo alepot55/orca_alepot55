@@ -3779,6 +3779,11 @@
             "4fba7dc1e7": "saldo {{value0}}",
             "codexSignInSuccess": "Sesión iniciada en Codex",
             "codexSignInError": "No se pudo iniciar sesión en Codex. Inténtalo de nuevo.",
+            "codexResetSuccess": "Límites de Codex restablecidos",
+            "codexResetNothingToReset": "No hay ninguna ventana de límite de Codex elegible para restablecer.",
+            "codexResetNoCredit": "No hay ningún restablecimiento de límites de Codex disponible.",
+            "codexResetAlreadyRedeemed": "Restablecimiento de Codex ya aplicado",
+            "codexResetError": "No se pudieron restablecer los límites de Codex. Inténtalo de nuevo.",
             "cursorUsageMenu": "Uso de Cursor",
             "hiddenUsageProviders": "También: {{value0}}",
             "zcodeUsageMenu": "Uso del código Z"
