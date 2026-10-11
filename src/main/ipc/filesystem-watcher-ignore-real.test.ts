@@ -23,8 +23,9 @@ describe('filesystem watcher native ignores', () => {
     const rootModules = join(root, 'node_modules')
     const nestedModules = join(root, 'packages', 'app', 'node_modules')
     const nestedSource = join(root, 'packages', 'app', 'src')
+    const linkedWorktreeSource = join(root, '.worktrees', 'agent-task', 'src')
     await Promise.all(
-      [rootModules, nestedModules, nestedSource].map((directory) =>
+      [rootModules, nestedModules, nestedSource, linkedWorktreeSource].map((directory) =>
         mkdir(directory, { recursive: true })
       )
     )
@@ -47,7 +48,7 @@ describe('filesystem watcher native ignores', () => {
     if (process.platform !== 'win32') {
       generatedNames.push('generated\nnewline.js')
     }
-    const generatedFiles = [rootModules, nestedModules].flatMap((directory) =>
+    const generatedFiles = [rootModules, nestedModules, linkedWorktreeSource].flatMap((directory) =>
       generatedNames.map((name) => join(directory, name))
     )
     await Promise.all(generatedFiles.map((file) => writeFile(file, 'generated')))
