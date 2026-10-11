@@ -29,7 +29,7 @@ import { ensureJcodeRuntimeDir } from '../../shared/jcode-runtime-dir'
 import { FLOATING_TERMINAL_WORKTREE_ID } from '../../shared/constants'
 import { homedir } from 'node:os'
 import { getExplicitWorktreeIdSelector } from './runtime-worktree-selection'
-import { WORKTREE_ID_SEPARATOR } from '../../shared/worktree/id'
+import { WORKTREE_ID_SEPARATOR, findStoredWorktreeIdSpelling } from '../../shared/worktree/id'
 import { WorktreeIdRequiresFullPathError } from './runtime-worktree-lineage-resolution'
 import { triggerTerminalSpawnPushTargetMaterialization } from './runtime-terminal-spawn-push-target-materialization'
 import { resolveCreatedWorktreeTerminalTarget } from './runtime-created-worktree-terminal-target'
@@ -227,5 +227,37 @@ export class OrcaRuntimeWithResolveBrowserNetworkExecutionHostForWorktree extend
       throw new WorktreeIdRequiresFullPathError()
     }
     return worktreeId
+  }
+
+  // Why: session-tab snapshots and saved tabs are keyed by the host's spelling, so a Windows `/` alias read as no tabs.
+  // Only session-tab operations adopt it; terminal listing and worktree resolution match live state by exact id.
+  protected getValidatedSessionTabsWorktreeIdSelector(selector: string | undefined): string | null {
+    const worktreeId = this.getValidatedExplicitWorktreeIdSelector(selector)
+    if (worktreeId === null || this.mobileSessionTabsByWorktree.has(worktreeId)) {
+      return worktreeId
+    }
+    const stored = findStoredWorktreeIdSpelling(worktreeId, this.iterateStoredWorktreeIds())
+    // The live scan runs only once an alias exists, so ordinary ids never pay for it.
+    return stored === worktreeId || this.hostHoldsLiveStateForWorktreeId(worktreeId)
+      ? worktreeId
+      : stored
+  }
+
+  // Live state under the requested spelling wins over a saved alias.
+  protected hostHoldsLiveStateForWorktreeId(worktreeId: string): boolean {
+    for (const records of [this.tabs.values(), this.leaves.values(), this.ptysById.values()]) {
+      for (const record of records) {
+        if (record.worktreeId === worktreeId) {
+          return true
+        }
+      }
+    }
+    return Boolean(this.store?.getWorktreeMeta?.(worktreeId))
+  }
+
+  // Lazy: ids with no `repoId::path` shape never read the repo inventory on the poll path.
+  protected *iterateStoredWorktreeIds(): Generator<string> {
+    yield* this.mobileSessionTabsByWorktree.keys()
+    yield* this.getKnownWorkspaceSessionWorktreeIds()
   }
 }

@@ -50,7 +50,7 @@ export class OrcaRuntimeWithCollectMobileVisibleGraphChangedWorktrees extends Or
     worktreeSelector: string,
     clientNavigationId?: string
   ): Promise<RuntimeMobileSessionTabsResult> {
-    const explicitWorktreeId = this.getValidatedExplicitWorktreeIdSelector(worktreeSelector)
+    const explicitWorktreeId = this.getValidatedSessionTabsWorktreeIdSelector(worktreeSelector)
     if (explicitWorktreeId) {
       this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(explicitWorktreeId, {
         allowAttachedWindow: true,

@@ -200,19 +200,29 @@ export const SESSION_TAB_METHODS = [
     ) => {
       const snapshot = await runtime.listMobileSessionTabs(params.worktree, pairedDeviceId)
       const connection = connectionId ?? 'local'
+      // Why: subscribe registers under the spelling the client sent; the snapshot carries the host's own.
+      const worktreeIds = new Set([snapshot.worktree])
+      const requestedWorktreeId = getExplicitWorktreeIdSelector(params.worktree)
+      if (requestedWorktreeId) {
+        worktreeIds.add(requestedWorktreeId)
+      }
       if (params.subscriptionId) {
-        runtime.cleanupSubscription(
-          `session.tabs:${connection}:${snapshot.worktree}:${params.subscriptionId}`
-        )
+        for (const worktreeId of worktreeIds) {
+          runtime.cleanupSubscription(
+            `session.tabs:${connection}:${worktreeId}:${params.subscriptionId}`
+          )
+        }
         return { unsubscribed: true }
       }
       runtime.cleanupSubscription(`session.tabs:${connection}:${params.worktree}`)
-      runtime.cleanupSubscription(`session.tabs:${connection}:${snapshot.worktree}`)
-      // Why: subscribes register on arrival, so spare any that arrived after this unsubscribe.
-      runtime.cleanupSubscriptionsByPrefix(
-        `session.tabs:${connection}:${snapshot.worktree}:`,
-        subscriptionRegistrationVersion
-      )
+      for (const worktreeId of worktreeIds) {
+        runtime.cleanupSubscription(`session.tabs:${connection}:${worktreeId}`)
+        // Why: subscribes register on arrival, so spare any that arrived after this unsubscribe.
+        runtime.cleanupSubscriptionsByPrefix(
+          `session.tabs:${connection}:${worktreeId}:`,
+          subscriptionRegistrationVersion
+        )
+      }
       return { unsubscribed: true }
     }
   }),
