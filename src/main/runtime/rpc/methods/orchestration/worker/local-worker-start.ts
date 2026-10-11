@@ -31,7 +31,7 @@ import { resolveDispatchAssigneeParty } from '../../../../orchestration/orchestr
 import { CHAT_WORKER_AUTHORITY, chatAssigneeOf, chatWorkerMode } from '../chat-assignee-admission'
 import { recordCreatedWorkerTerminalCustody } from './created-worker-terminal-custody'
 import { tearDownFailedWorkerStart } from './failed-worker-start-teardown'
-import { requireWorkerAuthority, type WorkerEffect } from './worker-topology'
+import { requireWorkerAuthority, reusedWorktreeEffects, type WorkerEffect } from './worker-topology'
 import { prepareLocalWorkerStart } from './worker-start-validation'
 import { deliverAndSettleWorkerStartReadiness } from './worker-start-readiness-settlement'
 
@@ -174,10 +174,7 @@ export async function startLocalWorker(args: {
   const effects: WorkerEffect[] = []
   const task = started.task
   if (resolvedWorktree) {
-    effects.push(
-      { kind: 'worktree', action: 'reused', id: resolvedWorktree.id },
-      { kind: 'setup', action: 'not_applicable', state: 'not_applicable' }
-    )
+    effects.push(...reusedWorktreeEffects(resolvedWorktree.id, params.worktree === undefined))
   }
   let terminalHandle = params.terminal
   let placed: Awaited<ReturnType<typeof placeWorkerAgent>> | undefined
