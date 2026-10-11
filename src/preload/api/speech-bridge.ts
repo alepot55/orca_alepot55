@@ -32,10 +32,11 @@ export const speechApi = {
     sessionId: string
   ): Promise<void> => ipcRenderer.invoke('speech:startDictation', modelId, hotwords, sessionId),
   feedAudio: (samples: Float32Array, sampleRate: number, sessionId = 'desktop'): Promise<void> =>
-    // Why: Float32Array is zeroed crossing the contextBridge/IPC boundary; wrap in a Buffer to preserve bytes.
+    // Why: Float32Array is zeroed crossing the contextBridge/IPC boundary; send a byte view instead.
+    // Sandboxed preloads have no Buffer global (removed in Electron 45).
     ipcRenderer.invoke(
       'speech:feedAudio',
-      Buffer.from(samples.buffer, samples.byteOffset, samples.byteLength),
+      new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength),
       sampleRate,
       sessionId
     ),
