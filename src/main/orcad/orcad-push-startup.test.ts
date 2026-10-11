@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -10,6 +10,7 @@ import { PushUnregisterOutbox } from '../runtime/push/push-unregister-outbox'
 import { createPushHostKeypair } from '../runtime/push/push-host-challenge-fixtures'
 import { acquireProfileStateMaintenance } from '../persistence/profile-state/profile-state-access'
 import { profileStateAccessPaths } from '../persistence/profile-state/profile-state-access-owner'
+import type { CommitMessageAgentEnvironmentResolvers } from '../text-generation/commit-message-agent-environment'
 
 const state = vi.hoisted(() => ({
   root: '',
@@ -28,6 +29,13 @@ const state = vi.hoisted(() => ({
   refreshOpenCodePlugins: vi.fn(),
   adoptLoginShellAgentHomes: vi.fn(async () => {})
 }))
+const hostAgentEnvironment = vi.hoisted(() => {
+  const value: {
+    resolvers?: CommitMessageAgentEnvironmentResolvers
+    loginShell: NodeJS.ProcessEnv
+  } = { loginShell: {} }
+  return value
+})
 const profile = vi.hoisted(() => {
   const value: { settings: Partial<GlobalSettings> } = { settings: {} }
   return value
@@ -44,6 +52,11 @@ vi.mock('../agent-hooks/managed-agent-hook-controls', async (importOriginal) => 
 vi.mock('../agent-hooks/local-agent-cli-presence', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   hydrateAgentCliShellPath: async () => {}
+}))
+// Why: the sandbox has no user login shell; this stands in for what the host's rc files export.
+vi.mock('../startup/login-shell-environment', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  resolveLoginShellEnvironment: async () => hostAgentEnvironment.loginShell
 }))
 vi.mock('../agent-hooks/agent-home-login-shell', () => ({
   adoptLoginShellAgentHomes: state.adoptLoginShellAgentHomes
@@ -132,6 +145,9 @@ vi.mock('../runtime/orca-runtime', () => ({
     async reconcileLegacyWorkerTerminals() {}
     async stopLegacyWorkerTerminalRecovery() {}
     syncWindowGraph() {}
+    setCommitMessageAgentEnvironmentResolvers(resolvers: CommitMessageAgentEnvironmentResolvers) {
+      hostAgentEnvironment.resolvers = resolvers
+    }
     setMobilePushRegistrar(
       registrar: Parameters<RuntimeMobileNotificationController['setPushRegistrar']>[0]
     ) {
@@ -185,6 +201,8 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(state.root, { recursive: true, force: true })
   state.profileStartupErrors.length = 0
+  hostAgentEnvironment.resolvers = undefined
+  hostAgentEnvironment.loginShell = {}
   profile.settings = {}
   vi.clearAllMocks()
 })
@@ -323,3 +341,66 @@ it('leaves agent configs alone when status hooks are off', async () => {
     await host.stop()
   }
 })
+
+const LOGIN_ONLY_VARIABLE = 'ORCA_TEST_LOGIN_ONLY_VALUE'
+
+// Why: orcad starts from a non-login SSH command, so a variable the login shell exports (a proxy,
+// a token) reaches no generation agent unless the host base-environment resolver is installed.
+// The agent is run by absolute path, so the result does not depend on how PATH is hydrated.
+const loginVariableCases: [string, Partial<GlobalSettings>, string][] = [
+  ['inherits the login-shell variables by default', {}, 'from-login-shell'],
+  [
+    'drops them when the host turns shell inheritance off',
+    { nativeChatInheritShellEnvironment: false },
+    'unset'
+  ],
+  [
+    'keeps a variable the host lists when inheritance is off',
+    {
+      nativeChatInheritShellEnvironment: false,
+      nativeChatShellEnvironmentVariables: [LOGIN_ONLY_VARIABLE]
+    },
+    'from-login-shell'
+  ]
+]
+
+it.runIf(process.platform !== 'win32').each(loginVariableCases)(
+  'commit message generation %s',
+  async (_name, settings, expectedValue) => {
+    state.root = mkdtempSync(join(tmpdir(), 'orca-headless-commit-agent-'))
+    const agent = join(state.root, 'echo-login-variable-agent')
+    writeFileSync(
+      agent,
+      `#!/bin/sh\ncat >/dev/null\necho "value=\${${LOGIN_ONLY_VARIABLE}:-unset}"\n`
+    )
+    chmodSync(agent, 0o755)
+    profile.settings = settings
+    hostAgentEnvironment.loginShell = {
+      PATH: process.env.PATH,
+      [LOGIN_ONLY_VARIABLE]: 'from-login-shell'
+    }
+    const { startOrcad } = await import('./orcad-entry')
+    const host = await startOrcad({ noPairing: true, json: true })
+    try {
+      const { prepareLocalCommitMessageAgentEnv } =
+        await import('../text-generation/commit-message-agent-environment')
+      const { generateCommitMessageFromContext } =
+        await import('../text-generation/commit-message-text-generation')
+      const localEnv = await prepareLocalCommitMessageAgentEnv(
+        'custom',
+        hostAgentEnvironment.resolvers
+      )
+      expect(localEnv.ok).toBe(true)
+
+      await expect(
+        generateCommitMessageFromContext(
+          { branch: 'main', stagedSummary: 'M README.md', stagedPatch: '+test' },
+          { agentId: 'custom', model: '', customAgentCommand: agent },
+          { kind: 'local', cwd: state.root, env: localEnv.ok ? localEnv.env : undefined }
+        )
+      ).resolves.toMatchObject({ success: true, message: `value=${expectedValue}` })
+    } finally {
+      await host.stop()
+    }
+  }
+)
