@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
     rollback: vi.fn(),
     recover: vi.fn(),
     probe: vi.fn(),
+    wake: vi.fn(),
     buildHash: vi.fn(),
     ensureTunnel: vi.fn(),
     pendingMigration: vi.fn()
@@ -37,6 +38,7 @@ vi.mock('./orcad-remote-deploy', () => ({ deployOrcad: mocks.deploy }))
 vi.mock('./orcad-remote-rollback', () => ({ rollbackOrcad: mocks.rollback }))
 vi.mock('./orcad-activation-recovery', () => ({ recoverInterruptedOrcadActivation: mocks.recover }))
 vi.mock('./orcad-active-readiness', () => ({ probeActiveOrcadReadiness: mocks.probe }))
+vi.mock('./orcad-managed-wake', () => ({ wakeStoppedManagedOrcad: mocks.wake }))
 vi.mock('./orcad-remote-build-hash', () => ({ readRemoteOrcadBuildHash: mocks.buildHash }))
 vi.mock('./orcad-artifact-materializer', () => ({
   materializeOrcadArtifact: async () => '/local/orcad'
@@ -67,6 +69,7 @@ beforeEach(() => {
   mocks.resolveContext.mockImplementation(async () => harness.context())
   mocks.census.mockResolvedValue(idle)
   mocks.probe.mockResolvedValue(managedReadiness())
+  mocks.wake.mockResolvedValue({ outcome: 'serving' })
   mocks.buildHash.mockResolvedValue('previous-hash')
   mocks.recover.mockResolvedValue({ outcome: 'none' })
 })
@@ -125,6 +128,26 @@ describe('updateManagedOrcadEnvironment', () => {
     expect(environment?.orcadDeployment).toEqual(harness.environment.orcadDeployment)
     const status = await getManagedOrcadRuntimeStatus(harness.userDataPath, 'Managed')
     expect(status.deferredUpdate).toBeNull()
+  })
+
+  it('starts the current version when its process exited instead of failing the update', async () => {
+    let running = false
+    mocks.wake.mockImplementation(async () => {
+      running = true
+      return { outcome: 'started', readiness: managedReadiness() }
+    })
+    mocks.probe.mockImplementation(async () => {
+      if (!running) {
+        throw new Error(`orcad ${MANAGED_VERSION} is recorded active but its process has exited.`)
+      }
+      return managedReadiness()
+    })
+    mocks.deploy.mockResolvedValueOnce({ outcome: 'already-active', fullVersion: MANAGED_VERSION })
+    const result = await updateManagedOrcadEnvironment(harness.userDataPath, {
+      selector: 'Managed'
+    })
+    expect(result).toMatchObject({ outcome: 'already-current', activeVersion: MANAGED_VERSION })
+    expect(mocks.wake).toHaveBeenCalledOnce()
   })
 
   it('re-pairs through the same tunnel, keeping the deployment link, when the offer changed', async () => {
