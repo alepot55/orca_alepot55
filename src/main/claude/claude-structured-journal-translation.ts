@@ -22,6 +22,7 @@ import { createClaudeStreamedBlockRegistry } from './claude-streamed-block-ident
 import { createClaudeStreamedTextCheckpoints } from './claude-streamed-text-checkpoints'
 import {
   claudeFrameParentRef,
+  claudeStartedSendUuid,
   claudeStreamTurnStartSource,
   claudeStreamTurnSource,
   isRootClaudeFrame
@@ -135,13 +136,13 @@ export function createClaudeJournalTranslator(
   }
 
   const publishActivity = (kind: string, payload: unknown): void => {
-    const turnId = turn.id
-    if (turnId === null) {
+    const target = turn.activityTarget
+    if (target === null) {
       return
     }
     const text = claudeProviderFrameActivity(kind, payload)
     if (text !== undefined) {
-      deps.sink.setActivity?.(text ? { turnId, text } : null)
+      deps.sink.setActivity?.(text ? { ...target, text } : null)
     }
   }
 
@@ -266,6 +267,10 @@ export function createClaudeJournalTranslator(
           )
         }
         context.observeResponse(event.message, event.observedAt ?? Date.now())
+        const startedSend = claudeStartedSendUuid(event.message)
+        if (startedSend !== null) {
+          turn.observeSendStarted(startedSend)
+        }
         publishActivity(kind, event.message)
         // The CLI's own turn-over signal, and the only end a turn stopped by a
         // fault with no result frame ever gets. Reopen stays allowed: output

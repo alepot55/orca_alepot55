@@ -210,6 +210,58 @@ describe('selectStructuredAgentTurnActivity', () => {
   })
 })
 
+describe("selectStructuredAgentTurnActivity — before the send's turn opens", () => {
+  const preceding = {
+    turnId: 'send-1',
+    text: 'Compacting the conversation',
+    precedesTurn: true as const
+  }
+
+  it('shows activity the host keyed to a send whose turn has not opened', () => {
+    expect(selectStructuredAgentTurnActivity([], null, preceding)).toEqual({
+      kind: 'description',
+      text: 'Compacting the conversation'
+    })
+  })
+
+  it("does not let an earlier turn's tool label hide it", () => {
+    const items = [
+      turnStart,
+      item(2, {
+        kind: 'tool-call',
+        name: 'shell',
+        input: { command: 'compacting the conversation' },
+        state: 'running'
+      })
+    ]
+
+    expect(selectStructuredAgentTurnActivity(items, null, preceding)?.text).toBe(
+      'Compacting the conversation'
+    )
+  })
+
+  it('ignores activity of a running turn when no turn is running', () => {
+    expect(
+      selectStructuredAgentTurnActivity([], null, {
+        turnId: 'turn-1',
+        text: 'Compacting the conversation'
+      })
+    ).toBeNull()
+  })
+
+  it('yields to a running turn that is not the send it was keyed to', () => {
+    expect(selectStructuredAgentTurnActivity([turnStart], 'turn-1', preceding)).toBeNull()
+  })
+
+  it("still shows it once that send's turn is the running one", () => {
+    const opened = item(1, { kind: 'turn', turnId: 'send-1', state: 'running' })
+
+    expect(selectStructuredAgentTurnActivity([opened], 'send-1', preceding)?.text).toBe(
+      'Compacting the conversation'
+    )
+  })
+})
+
 describe('selectStructuredAgentTurnActivity — which agent it answers for', () => {
   /** A row a subagent produced, which shares the session's journal. */
   function childItem(sequence: number, body: AgentJournalItemBody): AgentJournalRenderItem {

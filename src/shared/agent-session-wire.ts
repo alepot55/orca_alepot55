@@ -60,6 +60,9 @@ export { agentSessionBackgroundTasksEqual } from './agent-session-background-tas
 export type AgentSessionTurnActivity = {
   turnId: string
   text: string
+  /** `turnId` names a send the provider started whose turn has not opened yet. Optional for
+   *  mixed-version peers: an older client never matches it to a running turn. */
+  precedesTurn?: true
 }
 
 /** The session's newest turn record over the WHOLE journal. A page windows the timeline and a

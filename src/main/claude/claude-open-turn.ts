@@ -5,6 +5,7 @@
 // keeping a copy, so there is nothing to disagree with.
 
 import type { AgentSessionContextUsage } from '../../shared/agent-session-context-usage'
+import type { AgentSessionTurnActivity } from '../../shared/agent-session-wire'
 import { agentJournalItemKey } from '../../shared/agent-session-journal-item-key'
 import {
   AGENT_JOURNAL_THREAD_SCOPE,
@@ -43,6 +44,8 @@ export class ClaudeOpenTurn {
    *  cycle's init (a background task finishing), so membership is read from the
    *  cycle's work, not from when the turn opened. */
   private cycleWorkObserved = false
+  /** A send the CLI started but has not echoed yet; the echo opens the turn under this uuid. */
+  private startedSendUuid: string | null = null
   private readonly opener: (
     frame: Record<string, unknown>,
     source: ClaudeTurnSource | null,
@@ -80,6 +83,16 @@ export class ClaudeOpenTurn {
       : AGENT_JOURNAL_THREAD_SCOPE
   }
 
+  /** What live activity attaches to: the open turn, else the started send whose turn is next. */
+  get activityTarget(): Pick<AgentSessionTurnActivity, 'turnId' | 'precedesTurn'> | null {
+    if (this.current) {
+      return { turnId: this.current.turnId }
+    }
+    return this.startedSendUuid === null
+      ? null
+      : { turnId: this.startedSendUuid, precedesTurn: true }
+  }
+
   get groupKey(): string | null {
     return this.current ? `${this.current.sessionId}:${this.current.turnId}` : null
   }
@@ -93,6 +106,13 @@ export class ClaudeOpenTurn {
    *  cycle's first send is its opener, never a fold. */
   get openedInLiveProviderCycle(): boolean {
     return this.current !== null && this.cycleWorkObserved
+  }
+
+  /** The CLI began a send ahead of its echo. A send started inside an open turn is folded into it. */
+  observeSendStarted(uuid: string): void {
+    if (!this.current) {
+      this.startedSendUuid = uuid
+    }
   }
 
   /** A root init frame: the CLI is starting a new request cycle. */
@@ -121,6 +141,7 @@ export class ClaudeOpenTurn {
       })
     }
     this.current = turn
+    this.startedSendUuid = null
     this.publish(turn)
     this.deps.sink.setActivity?.(null)
   }
@@ -139,6 +160,7 @@ export class ClaudeOpenTurn {
       })
     }
     this.current = turn
+    this.startedSendUuid = null
     this.deps.sink.setActivity?.(null)
   }
 
@@ -172,6 +194,7 @@ export class ClaudeOpenTurn {
   settle(end: ClaudeTurnEnd, contextUsage?: AgentSessionContextUsage): void {
     // Every settle is a provider cycle ending (result, idle, child exit).
     this.cycleWorkObserved = false
+    this.startedSendUuid = null
     // Even with no turn open: work a suppressed turn produced still ends here.
     this.deps.endOpenWork(end.completedAt)
     if (this.current) {

@@ -51,6 +51,13 @@ export function claudeTurnOpenedBySendEcho(
     : null
 }
 
+/** The send the CLI reports it began running; its echo opens the turn under this uuid. */
+export function claudeStartedSendUuid(frame: Record<string, unknown>): string | null {
+  return frame.type === 'command_lifecycle' && frame.state === 'started'
+    ? claudeText(frame.command_uuid)
+    : null
+}
+
 /** Whether a frame is the root turn's own, rather than a child's. An absent
  *  `parent_tool_use_id` is a root frame: only a string names a parent, and a
  *  build that omits the field on root frames must not silently stop opening
