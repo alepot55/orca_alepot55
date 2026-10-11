@@ -20,6 +20,7 @@ import {
 } from './codex-session-backfill-copy'
 import { resolveCodexSessionBackfillPaths } from './codex-session-backfill'
 import { ManagedCodexHomeTemporarilyUnavailableError } from '../codex-accounts/host-codex-managed-home-ownership'
+import { toCodexTrustedPathComparisonCopy } from './codex-session-resume-home'
 
 const RETRYABLE_RESUME_ERROR =
   'Orca could not safely move this legacy Codex session into your system Codex home. Retry resume; if it still fails, check that both Codex session folders are readable and writable.'
@@ -52,7 +53,7 @@ export async function prepareLegacySharedCodexSessionResume(
     return { useRealCodexHome: false }
   }
 
-  const sourcePath = resolve(args.filePath)
+  const sourcePath = resolveRolloutPath(args.filePath)
   const relativePath = relative(resolve(managedSessionsRoot), sourcePath)
   if (!isDatedRolloutRelativePath(relativePath)) {
     throw new Error(RETRYABLE_RESUME_ERROR)
@@ -98,7 +99,7 @@ export async function prepareCodexAccountRestartResume(args: {
   }
   const relativePath = relative(
     resolve(join(args.sourceHome, 'sessions')),
-    resolve(args.transcriptPath)
+    resolveRolloutPath(args.transcriptPath)
   )
   if (!isDatedRolloutRelativePath(relativePath)) {
     throw new Error(RETRYABLE_RESUME_ERROR)
@@ -140,7 +141,10 @@ async function resolveSelectedAccountCodexHomeForResume(
   if (!selectedCodexHome || sameRuntimePath(selectedCodexHome, args.codexHome)) {
     return null
   }
-  const relativePath = relative(resolve(join(args.codexHome, 'sessions')), resolve(args.filePath))
+  const relativePath = relative(
+    resolve(join(args.codexHome, 'sessions')),
+    resolveRolloutPath(args.filePath)
+  )
   if (!isDatedRolloutRelativePath(relativePath)) {
     return null
   }
@@ -234,6 +238,11 @@ async function fileDigest(filePath: string): Promise<string> {
     hash.update(chunk as Buffer)
   }
   return hash.digest('hex')
+}
+
+// Why: Codex records \\?\C:\... transcripts; fold them as provenance does or relative() never yields a dated path.
+function resolveRolloutPath(filePath: string): string {
+  return resolve(toCodexTrustedPathComparisonCopy(filePath) ?? filePath)
 }
 
 function isDatedRolloutRelativePath(relativePath: string): boolean {
