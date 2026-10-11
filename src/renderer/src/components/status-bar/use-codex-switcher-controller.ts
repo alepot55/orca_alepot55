@@ -31,6 +31,7 @@ import {
   normalizeCodexStatusRuntimeTarget,
   resolveCodexStatusAccountState
 } from './status-bar-codex-accounts'
+import { redeemCodexResetWithFeedback } from './codex-reset-action'
 import { signInCodexAccount } from './codex-sign-in-action'
 
 export function useCodexSwitcherController(codex: ProviderRateLimits) {
@@ -219,14 +220,9 @@ export function useCodexSwitcherController(codex: ProviderRateLimits) {
       return
     }
     setIsRedeemingReset(true)
-    try {
-      await consumeCodexRateLimitResetCredit()
-    } catch (error) {
-      console.error('Failed to redeem Codex rate-limit reset from status bar:', error)
-    } finally {
-      if (mountedRef.current) {
-        setIsRedeemingReset(false)
-      }
+    await redeemCodexResetWithFeedback(consumeCodexRateLimitResetCredit)
+    if (mountedRef.current) {
+      setIsRedeemingReset(false)
     }
   }
 

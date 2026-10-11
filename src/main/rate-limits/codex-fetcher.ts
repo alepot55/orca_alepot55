@@ -14,6 +14,8 @@ import {
 import { isCodexStateDbBackfillPending } from '../codex/codex-state-db'
 import { startCodexStateDbBackfillRecoveryInBackground } from '../codex/codex-state-db-backfill-recovery'
 import { spawnProcess } from '@orca/process-host'
+import { getMainHttpClient } from '../network/http-client'
+import { ensureElectronProxyFromEnvironment } from '../network/proxy-settings'
 import { probeCodexAuthPresence } from './codex-auth-presence'
 import {
   fetchCodexRateLimitsViaBackend,
@@ -86,8 +88,15 @@ function fetchCodexResetCredits(url: string, init: RequestInit): Promise<Respons
   return fetch(url, init)
 }
 
-function consumeCodexResetCredit(url: string, init: RequestInit): Promise<Response> {
-  return fetch(url, init)
+async function consumeCodexResetCredit(url: string, init: RequestInit): Promise<Response> {
+  const httpClient = getMainHttpClient()
+  const proxySession = httpClient.proxySession()
+  // Why: bare Node fetch skips Chromium's system/env proxy state; use the desktop network stack.
+  await ensureElectronProxyFromEnvironment({
+    ...(proxySession ? { proxySession } : {}),
+    probeUrl: url
+  }).catch(() => {})
+  return httpClient.fetch(url, init)
 }
 
 async function fetchViaRpc(options?: CodexRateLimitFetchOptions): Promise<ProviderRateLimits> {

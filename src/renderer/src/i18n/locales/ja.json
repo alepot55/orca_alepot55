@@ -3779,6 +3779,11 @@
             "4fba7dc1e7": "残高 {{value0}}",
             "codexSignInSuccess": "Codex にサインインしました",
             "codexSignInError": "Codex のサインインに失敗しました。もう一度お試しください。",
+            "codexResetSuccess": "Codex の制限をリセットしました",
+            "codexResetNothingToReset": "リセット対象の Codex レート制限ウィンドウはありません。",
+            "codexResetNoCredit": "利用できる Codex のレート制限リセットはありません。",
+            "codexResetAlreadyRedeemed": "Codex のリセットは適用済みです",
+            "codexResetError": "Codex の制限をリセットできませんでした。もう一度お試しください。",
             "cursorUsageMenu": "Cursor の使用状況",
             "hiddenUsageProviders": "ほかに: {{value0}}",
             "zcodeUsageMenu": "Zコードの使用法"

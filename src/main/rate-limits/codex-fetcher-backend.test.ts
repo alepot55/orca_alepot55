@@ -20,6 +20,8 @@ vi.mock('../codex/codex-state-db-backfill-recovery', () => ({
   startCodexStateDbBackfillRecoveryInBackground: vi.fn()
 }))
 
+import { setDefaultProxySessionResolver } from '../network/proxy-settings'
+import { setMainHttpClient } from '../network/http-client'
 import { consumeCodexRateLimitResetCredit, fetchCodexRateLimits } from './codex-fetcher'
 
 describe('Codex backend rate-limit requests', () => {
@@ -32,6 +34,9 @@ describe('Codex backend rate-limit requests', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+    setMainHttpClient(null)
+    setDefaultProxySessionResolver(null)
     vi.restoreAllMocks()
   })
 
@@ -261,5 +266,43 @@ describe('Codex backend rate-limit requests', () => {
       })
     ).rejects.toThrow('Codex reset failed: HTTP 429')
     expect(cancelledBodies).toBe(1)
+  })
+
+  it('sends the reset request through the desktop network stack after applying the proxy', async () => {
+    vi.stubEnv('HTTPS_PROXY', 'http://proxy.example:8080')
+    vi.stubEnv('NO_PROXY', '')
+    vi.stubEnv('no_proxy', '')
+    readFileMock.mockResolvedValue(JSON.stringify({ tokens: { access_token: 'access-token' } }))
+    const proxySession = {
+      resolveProxy: vi.fn(async () => 'DIRECT'),
+      setProxy: vi.fn(async () => {}),
+      closeAllConnections: vi.fn(async () => {})
+    }
+    setDefaultProxySessionResolver(() => proxySession)
+    const desktopFetch = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ code: 'reset' }), { status: 200 })
+    )
+    setMainHttpClient({ fetch: desktopFetch, proxySession: () => null })
+
+    await expect(
+      consumeCodexRateLimitResetCredit({
+        codexHomePath: '/managed/codex-home',
+        idempotencyKey: 'redeem-proxy'
+      })
+    ).resolves.toBe('reset')
+
+    expect(proxySession.setProxy).toHaveBeenCalledWith({
+      mode: 'fixed_servers',
+      proxyRules: 'http://proxy.example:8080'
+    })
+    expect(desktopFetch).toHaveBeenCalledWith(
+      'https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume',
+      expect.objectContaining({ method: 'POST' })
+    )
+    expect(proxySession.setProxy.mock.invocationCallOrder[0]).toBeLessThan(
+      desktopFetch.mock.invocationCallOrder[0]
+    )
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

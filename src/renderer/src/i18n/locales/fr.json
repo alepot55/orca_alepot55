@@ -3876,6 +3876,11 @@
             "4fba7dc1e7": "solde {{value0}}",
             "codexSignInSuccess": "Connecté à Codex",
             "codexSignInError": "Échec de la connexion à Codex. Veuillez réessayer.",
+            "codexResetSuccess": "Limites Codex réinitialisées",
+            "codexResetNothingToReset": "Aucune fenêtre de limite Codex éligible à réinitialiser.",
+            "codexResetNoCredit": "Aucune réinitialisation des limites Codex n'est disponible.",
+            "codexResetAlreadyRedeemed": "Réinitialisation Codex déjà appliquée",
+            "codexResetError": "Impossible de réinitialiser les limites Codex. Veuillez réessayer.",
             "cursorUsageMenu": "Utilisation Cursor",
             "hiddenUsageProviders": "Aussi : {{value0}}",
             "zcodeUsageMenu": "Utilisation du code Z"

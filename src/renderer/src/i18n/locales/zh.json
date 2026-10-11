@@ -3779,6 +3779,11 @@
             "4fba7dc1e7": "余额 {{value0}}",
             "codexSignInSuccess": "已登录 Codex",
             "codexSignInError": "Codex 登录失败，请重试。",
+            "codexResetSuccess": "已重置 Codex 限额",
+            "codexResetNothingToReset": "没有可重置的 Codex 限额窗口。",
+            "codexResetNoCredit": "没有可用的 Codex 限额重置次数。",
+            "codexResetAlreadyRedeemed": "Codex 重置已应用",
+            "codexResetError": "无法重置 Codex 限额，请重试。",
             "cursorUsageMenu": "Cursor 用量",
             "hiddenUsageProviders": "另有：{{value0}}",
             "zcodeUsageMenu": "Z代码使用"
