@@ -89,6 +89,15 @@ export function getAutomationRunViewState({
   }
 
   if (run.workspaceId && workspaceExists) {
+    // Skipped runs are stamped with the automation's workspace but end before any agent launches.
+    if (run.status.startsWith('skipped_')) {
+      return {
+        availability: 'workspace',
+        actionLabel: 'Open workspace',
+        statusLabel: 'No agent was started for this run.',
+        canOpen: true
+      }
+    }
     return {
       availability: 'workspace',
       actionLabel: 'Resume workspace',

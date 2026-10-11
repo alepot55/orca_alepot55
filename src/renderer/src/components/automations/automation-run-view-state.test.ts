@@ -105,6 +105,35 @@ describe('automation run view state', () => {
     })
   })
 
+  it.each([
+    'skipped_precheck',
+    'skipped_missed',
+    'skipped_unavailable',
+    'skipped_needs_interactive_auth'
+  ] as const)(
+    'does not offer to resume a session for a %s run that never launched an agent',
+    (status) => {
+      const state = getAutomationRunViewState({
+        run: makeRun({
+          status,
+          terminalSessionId: null,
+          terminalPaneKey: null,
+          terminalPtyId: null
+        }),
+        workspaceExists: true,
+        terminalTargetExists: false
+      })
+
+      expect(state).toMatchObject({
+        availability: 'workspace',
+        actionLabel: 'Open workspace',
+        statusLabel: 'No agent was started for this run.',
+        canOpen: true
+      })
+      expect(state.actionLabel).not.toMatch(/resume/i)
+    }
+  )
+
   it('keeps skipped or missing-workspace runs as metadata-only history', () => {
     expect(
       getAutomationRunViewState({
