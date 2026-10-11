@@ -99,6 +99,21 @@ describe('worker-start plain formatting', () => {
       })
     ).toBe('Worker ctx_ready [ready] for task_1')
   })
+
+  it('prints the top-level warning of a ready receipt', () => {
+    expect(
+      formatWorkerStart({
+        taskId: 'task_1',
+        dispatchId: 'ctx_ready',
+        state: 'ready',
+        warning: 'No --worktree was passed, so the worker shares the caller worktree.',
+        effects: [{ kind: 'worktree', action: 'reused' }]
+      })
+    ).toBe(
+      'Worker ctx_ready [ready] for task_1\n' +
+        'Warning: No --worktree was passed, so the worker shares the caller worktree.'
+    )
+  })
 })
 
 describe('worker-read plain formatting', () => {
