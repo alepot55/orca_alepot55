@@ -120,7 +120,12 @@ export async function bulkDiscardChanges(
     }
 
     const trackedPathSpecs = await listTrackedPathSpecs(worktreePath, filePaths, options)
-    const { trackedPaths, untrackedPaths } = partitionTrackedPathSpecs(filePaths, trackedPathSpecs)
+    // Only Windows and WSL read a backslash as a separator, matching literalPathspec's conversion.
+    const { trackedPaths, untrackedPaths } = partitionTrackedPathSpecs(
+      filePaths,
+      trackedPathSpecs,
+      { backslashIsSeparator: process.platform === 'win32' || Boolean(options.wslDistro) }
+    )
     await removeSafeUntrackedDiscardTargets(
       worktreePath,
       untrackedPaths,

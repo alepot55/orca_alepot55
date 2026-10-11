@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { isTrackedPathSpec, partitionTrackedPathSpecs } from './git-tracked-pathspecs'
 
+const windowsHost = { backslashIsSeparator: true }
+const posixHost = { backslashIsSeparator: false }
+
 function previousPartition(filePaths: readonly string[], trackedPaths: readonly string[]) {
   const normalize = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '')
   const isTracked = (filePath: string) => {
@@ -51,8 +54,8 @@ describe('tracked pathspec partition', () => {
     ['', ['/absolute'], true],
     ['/', [''], true]
   ] as const)('keeps matching semantics for %j against %j', (request, tracked, expected) => {
-    expect(isTrackedPathSpec(request, tracked)).toBe(expected)
-    expect(partitionTrackedPathSpecs([request], tracked)).toEqual(
+    expect(isTrackedPathSpec(request, tracked, windowsHost)).toBe(expected)
+    expect(partitionTrackedPathSpecs([request], tracked, windowsHost)).toEqual(
       previousPartition([request], tracked)
     )
   })
@@ -60,7 +63,7 @@ describe('tracked pathspec partition', () => {
   it('preserves original spelling, duplicates and relative order in both action lists', () => {
     const requests = ['new', 'docs\\', '[ab].txt', 'docs///', 'new', 'src/file', 'docs\\']
     const tracked = ['docs/readme', 'src/file-extra', '[ab].txt', 'docs/readme']
-    expect(partitionTrackedPathSpecs(requests, tracked)).toEqual({
+    expect(partitionTrackedPathSpecs(requests, tracked, windowsHost)).toEqual({
       trackedPaths: ['docs\\', '[ab].txt', 'docs///', 'docs\\'],
       untrackedPaths: ['new', 'new', 'src/file']
     })
@@ -92,7 +95,9 @@ describe('tracked pathspec partition', () => {
       'C:\\a'
     ]
     for (const tracked of [[], paths, ...paths.map((entry) => [entry])]) {
-      expect(partitionTrackedPathSpecs(paths, tracked)).toEqual(previousPartition(paths, tracked))
+      expect(partitionTrackedPathSpecs(paths, tracked, windowsHost)).toEqual(
+        previousPartition(paths, tracked)
+      )
     }
   })
 
@@ -100,19 +105,46 @@ describe('tracked pathspec partition', () => {
     const requests = Array.from({ length: 64 }, (_, index) => `missing/${index}`)
     const tracked = Array.from({ length: 256 }, (_, index) => `docs\\file-${index}///`)
     expect(countNormalizations(() => previousPartition(requests, tracked))).toBe(32_896)
-    expect(countNormalizations(() => partitionTrackedPathSpecs(requests, tracked))).toBe(320)
-    expect(countNormalizations(() => partitionTrackedPathSpecs(requests, tracked))).toBe(320)
+    expect(
+      countNormalizations(() => partitionTrackedPathSpecs(requests, tracked, windowsHost))
+    ).toBe(320)
+    expect(
+      countNormalizations(() => partitionTrackedPathSpecs(requests, tracked, windowsHost))
+    ).toBe(320)
   })
 
   it('retains early exit for a selected directory with many tracked descendants', () => {
     const tracked = Array.from({ length: 150_000 }, (_, index) => `docs/file-${index}`)
     expect(countNormalizations(() => previousPartition(['docs'], tracked))).toBe(4)
-    expect(countNormalizations(() => partitionTrackedPathSpecs(['docs'], tracked))).toBe(2)
-    expect(countNormalizations(() => partitionTrackedPathSpecs([], tracked))).toBe(0)
+    expect(
+      countNormalizations(() => partitionTrackedPathSpecs(['docs'], tracked, windowsHost))
+    ).toBe(2)
+    expect(countNormalizations(() => partitionTrackedPathSpecs([], tracked, windowsHost))).toBe(0)
   })
 
   it('does not reuse tracked evidence across operations', () => {
-    expect(partitionTrackedPathSpecs(['docs'], ['docs/file']).trackedPaths).toEqual(['docs'])
-    expect(partitionTrackedPathSpecs(['docs'], []).untrackedPaths).toEqual(['docs'])
+    expect(partitionTrackedPathSpecs(['docs'], ['docs/file'], windowsHost).trackedPaths).toEqual([
+      'docs'
+    ])
+    expect(partitionTrackedPathSpecs(['docs'], [], windowsHost).untrackedPaths).toEqual(['docs'])
+  })
+
+  it.each([
+    ['docs\\file.txt', ['docs/file.txt']],
+    ['docs/file.txt', ['docs\\file.txt']],
+    ['docs', ['docs\\file.txt']],
+    ['docs\\', ['docs/file.txt']]
+  ] as const)('keeps %j distinct from %j on a POSIX host', (request, tracked) => {
+    expect(isTrackedPathSpec(request, tracked, posixHost)).toBe(false)
+    expect(partitionTrackedPathSpecs([request], tracked, posixHost)).toEqual({
+      trackedPaths: [],
+      untrackedPaths: [request]
+    })
+  })
+
+  it('still matches identical, trailing-slash and descendant spellings on a POSIX host', () => {
+    expect(isTrackedPathSpec('docs\\file.txt', ['docs\\file.txt'], posixHost)).toBe(true)
+    expect(isTrackedPathSpec('docs/', ['docs/file.txt'], posixHost)).toBe(true)
+    expect(isTrackedPathSpec('docs\\dir', ['docs\\dir/file.txt'], posixHost)).toBe(true)
   })
 })
