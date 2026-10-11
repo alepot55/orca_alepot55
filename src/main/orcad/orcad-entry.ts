@@ -182,6 +182,8 @@ async function startOrcadRuntime(
     await import('../runtime/agent-status-observed-pane-identity')
 
   const { disposeWatcherProcessAndWait } = await import('../ipc/parcel-watcher-process')
+  const { installOrcadCommitMessageAgentEnvironment } =
+    await import('./orcad-commit-message-agent-environment')
 
   let profileStoreForShutdown:
     | { flushFinalOrThrowAsync(): Promise<void>; freezeWritesAsync(): Promise<void> }
@@ -297,6 +299,8 @@ async function startOrcadRuntime(
       }
     }
   })
+
+  installOrcadCommitMessageAgentEnvironment(runtime, profileStore)
 
   const { installOrcadSessionSearchService } = await import('./orcad-session-search')
   sessionSearch = await installOrcadSessionSearchService({
