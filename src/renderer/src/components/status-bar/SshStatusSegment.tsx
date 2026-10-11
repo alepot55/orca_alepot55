@@ -11,6 +11,7 @@ import {
 import { useAppStore } from '../../store'
 import type { SshConnectionStatus } from '../../../../shared/ssh-types'
 import { translate } from '@/i18n/i18n'
+import { syncSshConfigHostsPassively } from '@/lib/ssh-config-passive-sync'
 import { getHostDisplayLabelOverrides } from '../../../../shared/host-setting-overrides'
 import {
   isRuntimeOwnedSshTargetId,
@@ -159,6 +160,10 @@ export function SshStatusSegment({
       onOpenChange={(open) => {
         if (open) {
           void hydrateRuntimeEnvironmentStatuses()
+          // Why: runtime-only users haven't opted into SSH hosts; don't import their config.
+          if (targets.length > 0) {
+            void syncSshConfigHostsPassively()
+          }
           recordFeatureInteraction('ssh')
         }
       }}
