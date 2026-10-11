@@ -5,6 +5,7 @@
 // keeping a copy, so there is nothing to disagree with.
 
 import type { AgentSessionContextUsage } from '../../shared/agent-session-context-usage'
+import type { AgentSessionTurnActivity } from '../../shared/agent-session-wire'
 import { agentJournalItemKey } from '../../shared/agent-session-journal-item-key'
 import {
   AGENT_JOURNAL_THREAD_SCOPE,
@@ -90,6 +91,16 @@ export class ClaudeOpenTurn {
     return identity
       ? { kind: 'turn', turnItemId: agentJournalItemKey(identity) }
       : AGENT_JOURNAL_THREAD_SCOPE
+  }
+
+  /** What live activity attaches to: the open turn, else the started send whose turn is next. */
+  get activityTarget(): Pick<AgentSessionTurnActivity, 'turnId' | 'precedesTurn'> | null {
+    if (this.current) {
+      return { turnId: this.current.turnId }
+    }
+    return this.startedSend
+      ? { turnId: this.startedSend.clientMessageId, precedesTurn: true }
+      : null
   }
 
   /** When the open turn started, or null when none is open. */

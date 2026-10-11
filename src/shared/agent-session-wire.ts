@@ -47,10 +47,9 @@ export type {
 } from './agent-session-background-task-wire'
 export { agentSessionBackgroundTasksEqual } from './agent-session-background-task-wire'
 
-export type AgentSessionTurnActivity = {
-  turnId: string
-  text: string
-}
+/** `precedesTurn`: `turnId` names a send the provider started whose turn has not opened yet.
+ *  Optional for mixed-version peers: an older client never matches it to a running turn. */
+export type AgentSessionTurnActivity = { turnId: string; text: string; precedesTurn?: true }
 
 /** The session's newest turn record over the WHOLE journal. A page windows the timeline and a
  *  turn's record keeps the place it opened at, so a long turn's record falls off the page; this is
