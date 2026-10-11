@@ -61,7 +61,7 @@ describe('runtime close attribution topology', () => {
   it('identifies the authoritative runtime and target for remote, stale, and legacy closes', async () => {
     const closeMobileSessionTab = vi
       .fn()
-      .mockResolvedValueOnce({ closed: true, refused: true, refusalReason: 'stale-terminal' })
+      .mockResolvedValueOnce({ closed: false, refused: true, refusalReason: 'stale-terminal' })
       .mockResolvedValue({ closed: true })
     const runtime = {
       getRuntimeId: () => 'runtime-owner-1',
