@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { NotificationDispatchRequest } from '../../../../shared/notification-settings-types'
 import { getNotificationSoundOptions } from '@/components/notification-sound-options'
+import { i18n } from '@/i18n/i18n'
 import {
   createNotificationVolumeDraftState,
   NotificationsPane,
@@ -47,8 +48,9 @@ describe('NotificationsPane', () => {
     toastSuccess.mockClear()
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllGlobals()
+    await i18n.changeLanguage('en')
   })
 
   it('renders built-in notification sound choices in settings', () => {
@@ -219,6 +221,42 @@ describe('NotificationsPane', () => {
       })
     )
   })
+
+  it.each([
+    [
+      'darwin',
+      'macOS no mostró la notificación',
+      'Activa Permitir notificaciones para Orca en Ajustes del Sistema.'
+    ],
+    [
+      'win32',
+      'Windows no mostró la notificación',
+      'Activa las notificaciones de Orca en la Configuración de Windows.'
+    ]
+  ] as const)(
+    'explains the %s notification failure in the selected UI language',
+    async (platform, title, description) => {
+      const notifications = {
+        getPermissionStatus: vi.fn(async () => ({ supported: true, platform, requested: true })),
+        dispatch: vi.fn(async (_args: NotificationDispatchRequest) => ({
+          delivered: false,
+          reason: 'not-displayed' as const
+        })),
+        playSound: vi.fn(),
+        openSystemSettings: vi.fn(),
+        requestPermission: vi.fn()
+      }
+      vi.stubGlobal('window', {
+        Notification: { permission: 'granted' },
+        api: { notifications, shell: { pickAudio: vi.fn() } }
+      })
+      await i18n.changeLanguage('es')
+
+      await sendNotificationSettingsTestNotification(createSettings().notifications, 50)
+
+      expect(toastError).toHaveBeenCalledWith(title, expect.objectContaining({ description }))
+    }
+  )
 
   it('does not show an inert settings action on platforms without a settings shortcut', async () => {
     const notifications = {

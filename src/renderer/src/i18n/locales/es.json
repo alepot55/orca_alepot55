@@ -7838,7 +7838,11 @@
           "274af61bc0": "sistema",
           "6e6df3a09a": "Elegir archivo personalizado",
           "76e02467b8": "Cambiar archivo personalizado",
-          "d3756cf5bc": "desactivado"
+          "d3756cf5bc": "desactivado",
+          "macosNotDisplayedTitle": "macOS no mostró la notificación",
+          "macosNotDisplayedDescription": "Activa Permitir notificaciones para Orca en Ajustes del Sistema.",
+          "windowsNotDisplayedTitle": "Windows no mostró la notificación",
+          "windowsNotDisplayedDescription": "Activa las notificaciones de Orca en la Configuración de Windows."
         },
         "OpenAiTranscriptionKeyDialog": {
           "fa83512e48": "Guardar clave",
@@ -14828,6 +14832,9 @@
           "FeatureWallTourPanel": {
             "af7d622f6f": "Opcional"
           },
+          "FeatureWallTourSurface": {
+            "footerReopen": "Vuelve a abrirlo cuando quieras desde Ayuda > Explorar Orca."
+          },
           "KeepAwakeCard": {
             "209713d3c7": "Opcional"
           },
@@ -15144,7 +15151,8 @@
             "53905bd076": "Vista previa de desarrollo: abriendo la terminal de configuración de skills.",
             "1da82af45b": "Orca CLI necesita atención",
             "ce13a742d0": "`orca` registrado en PATH.",
-            "d1a86c7eb5": "Abre Configuración para finalizar la configuración de la CLI."
+            "d1a86c7eb5": "Abre Configuración para finalizar la configuración de la CLI.",
+            "installFailed": "No se pudo instalar Orca CLI."
           },
           "CmdJPaletteFeatureTipVisual": {
             "ab94e16d44": "Crear worktree \"{{value0}}\"",
@@ -16096,7 +16104,16 @@
             "b2e36f53a1": "No se pudo enviar el informe de fallo. Se subió el ticket de diagnóstico {{value0}}, pero no se vinculó.",
             "ead6fc0510": "No se capturó ningún informe de fallo automático. Aun así puedes enviar detalles e incluir logs de diagnóstico recientes cuando estén disponibles.",
             "b082f27490": "Adjuntar logs de diagnóstico recientes",
-            "e59f0b9427": "Envía un paquete limitado de logs redactados junto con el informe."
+            "e59f0b9427": "Envía un paquete limitado de logs redactados junto con el informe.",
+            "titleManual": "Informar de un fallo",
+            "titleRendererError": "Orca encontró un error de interfaz recuperable",
+            "titleCrashed": "Orca se cerró inesperadamente",
+            "descriptionManual": "Envía un informe de fallo que protege tu privacidad. Se incluyen logs de diagnóstico recientes y redactados cuando están disponibles.",
+            "descriptionRendererError": "Envía un informe de diagnóstico que protege tu privacidad para ayudarnos a entender qué parte de la interfaz falló.",
+            "descriptionCrashed": "Envía un informe de diagnóstico que protege tu privacidad para ayudarnos a entender qué ocurrió.",
+            "placeholderManual": "Opcional: ¿qué pasó?",
+            "placeholderRendererError": "Opcional: ¿qué estabas haciendo antes de este error de interfaz?",
+            "placeholderCrashed": "Opcional: ¿qué estabas haciendo antes de que Orca se cerrara?"
           },
           "submit": {
             "notice": {
