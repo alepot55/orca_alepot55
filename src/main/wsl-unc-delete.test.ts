@@ -66,6 +66,15 @@ describe('tryDeleteWslUncPath', () => {
     ])
   })
 
+  // Why: the main process owns no console, so an unhidden wsl.exe flashes a conhost that takes focus (#27390).
+  it('hides the wsl.exe console window', async () => {
+    await withPlatform('win32', async () => {
+      await tryDeleteWslUncPath('\\\\wsl.localhost\\Ubuntu\\home\\me\\repo\\file.txt')
+    })
+
+    expect(execFileMock.mock.calls[0][2]).toEqual(expect.objectContaining({ windowsHide: true }))
+  })
+
   it('passes -rf for a recursive directory delete', async () => {
     await withPlatform('win32', async () => {
       await tryDeleteWslUncPath('\\\\wsl.localhost\\Ubuntu\\home\\me\\repo\\dir', {

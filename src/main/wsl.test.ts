@@ -21,6 +21,7 @@ import {
   getCachedWslAvailability,
   getCachedWslDistros,
   getWslHome,
+  getWslHomeAsync,
   hasCachedWslAvailability,
   hasCachedWslDistros,
   isWslAvailable,
@@ -850,4 +851,58 @@ describe('wslUncDirectoryExistsAsync', () => {
     ).resolves.toBeNull()
     expect(execFileMock).not.toHaveBeenCalled()
   })
+})
+
+// Why: the main process owns no console, so a wsl.exe spawned without windowsHide flashes a
+// conhost that takes keyboard focus (#27390).
+describe('wsl.exe console windows', () => {
+  const uncPath = '\\\\wsl.localhost\\Ubuntu\\home\\jin\\repo'
+
+  afterEach(() => {
+    execFileMock.mockReset()
+    execFileSyncMock.mockReset()
+    _resetWslCachesForTests()
+  })
+
+  const syncProbes: [string, () => unknown, string][] = [
+    ['directory existence', () => wslUncDirectoryExists(uncPath), '__ORCA_DIRECTORY_EXISTS__'],
+    ['distro listing', () => listWslDistros(), 'Ubuntu\n'],
+    ['home lookup', () => getWslHome('Ubuntu'), '/home/jin\n'],
+    ['availability', () => isWslAvailable(), '']
+  ]
+
+  it.each(syncProbes)('hides the console of the synchronous %s probe', (_name, probe, stdout) => {
+    execFileSyncMock.mockReturnValue(stdout)
+    withPlatform('win32', probe)
+    expect(execFileSyncMock).toHaveBeenCalledTimes(1)
+    expect(execFileSyncMock).toHaveBeenCalledWith(
+      'wsl.exe',
+      expect.any(Array),
+      expect.objectContaining({ windowsHide: true })
+    )
+  })
+
+  const asyncProbes: [string, () => Promise<unknown>, string][] = [
+    ['directory existence', () => wslUncDirectoryExistsAsync(uncPath), '__ORCA_DIRECTORY_EXISTS__'],
+    ['distro listing', () => listWslDistrosAsync(), 'Ubuntu\n'],
+    ['home lookup', () => getWslHomeAsync('Ubuntu'), '/home/jin\n'],
+    ['availability', () => isWslAvailableAsync(), '']
+  ]
+
+  it.each(asyncProbes)(
+    'hides the console of the asynchronous %s probe',
+    async (_name, probe, stdout) => {
+      execFileMock.mockImplementation((_command, _args, _options, callback) => {
+        callback(null, stdout, '')
+      })
+      await withPlatformAsync('win32', probe)
+      expect(execFileMock).toHaveBeenCalledTimes(1)
+      expect(execFileMock).toHaveBeenCalledWith(
+        'wsl.exe',
+        expect.any(Array),
+        expect.objectContaining({ windowsHide: true }),
+        expect.any(Function)
+      )
+    }
+  )
 })

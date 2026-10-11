@@ -72,7 +72,7 @@ function execFileWsl(distro: string, command: string[]): Promise<void> {
       // doesn't abort mid-delete, while still capping a wedged wsl.exe.
       // Why an explicit cwd (#16463): the target rides in argv, and this deletes
       // worktrees -- so an inherited cwd is exactly the directory about to go.
-      { encoding: 'utf-8', timeout: 30000, cwd: resolveWslInteropSpawnCwd() },
+      { encoding: 'utf-8', timeout: 30000, windowsHide: true, cwd: resolveWslInteropSpawnCwd() },
       (error, _stdout, stderr) => {
         if (error) {
           reject(wslDeleteError(error, stderr))

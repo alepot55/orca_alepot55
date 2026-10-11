@@ -193,6 +193,7 @@ export function isWslAvailable(): boolean {
     execFileSync('wsl.exe', ['--status'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: WSL_AVAILABILITY_PROBE_TIMEOUT_MS,
+      windowsHide: true,
       // Same reason as the async twin: they share one cache, so a false ENOENT
       // from either poisons both.
       cwd: resolveWslInteropSpawnCwd()

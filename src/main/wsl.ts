@@ -65,12 +65,7 @@ export function wslUncDirectoryExists(uncPath: string): boolean | null {
     return null
   }
   try {
-    const stdout = execFileSync('wsl.exe', getWslDirectoryProbeArgs(info), {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-      encoding: 'utf8',
-      cwd: resolveWslInteropSpawnCwd()
-    })
+    const stdout = execFileUtf8Sync('wsl.exe', getWslDirectoryProbeArgs(info))
     return parseWslDirectoryProbeOutput(stdout)
   } catch {
     return null
@@ -86,7 +81,7 @@ export function wslUncDirectoryExistsAsync(uncPath: string): Promise<boolean | n
     return Promise.resolve(null)
   }
   return new Promise((resolve) => {
-    const probeOpts = { timeout: 5000, cwd: resolveWslInteropSpawnCwd() }
+    const probeOpts = { timeout: 5000, windowsHide: true, cwd: resolveWslInteropSpawnCwd() }
     execFile('wsl.exe', getWslDirectoryProbeArgs(info), probeOpts, (_error, stdout) => {
       // Why: wsl.exe uses numeric exits for both guest results and host failures; only the guest marker is authoritative.
       resolve(parseWslDirectoryProbeOutput(stdout))
@@ -170,12 +165,7 @@ export function listWslDistros(): string[] {
 
   try {
     const probeSequence = ++wslDistroProbeSequence
-    const output = execFileSync('wsl.exe', ['--list', '--quiet'], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-      cwd: resolveWslInteropSpawnCwd()
-    })
+    const output = execFileUtf8Sync('wsl.exe', ['--list', '--quiet'])
     return cacheWslDistroList(parseWslDistros(output), probeSequence)
   } catch {
     armWslDistroListRetry()
@@ -278,12 +268,14 @@ export function getWslHome(distro: string): string | null {
   }
 
   try {
-    const home = execFileSync('wsl.exe', ['-d', distro, '--exec', 'bash', '-c', 'echo $HOME'], {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-      cwd: resolveWslInteropSpawnCwd()
-    }).trim()
+    const home = execFileUtf8Sync('wsl.exe', [
+      '-d',
+      distro,
+      '--exec',
+      'bash',
+      '-c',
+      'echo $HOME'
+    ]).trim()
 
     if (!home || !home.startsWith('/')) {
       return null
@@ -368,6 +360,17 @@ export function _setWslCachesForTests(args: {
   if (args.distros) {
     cacheWslDistroList(args.distros, ++wslDistroProbeSequence)
   }
+}
+
+// Why windowsHide: the main process owns no console, so an unhidden wsl.exe flashes a conhost that takes focus.
+function execFileUtf8Sync(command: string, args: string[]): string {
+  return execFileSync(command, args, {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 5000,
+    windowsHide: true,
+    cwd: resolveWslInteropSpawnCwd()
+  })
 }
 
 function execFileUtf8(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
