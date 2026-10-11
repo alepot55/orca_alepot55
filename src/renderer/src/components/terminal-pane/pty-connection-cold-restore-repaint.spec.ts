@@ -17,7 +17,8 @@ import {
   LEAF_1,
   createMockTransport,
   createPane,
-  createManager
+  createManager,
+  terminalWriteText
 } from './pty-connection-test-pane-fixtures'
 import type { ConnectCallbacks, MockTransport } from './pty-connection-test-pane-fixtures'
 import { buildPaneConnectionDeps } from './pty-connection-test-deps'
@@ -235,7 +236,8 @@ export function registerPtyConnectionColdRestoreRepaintTests(): void {
       pane.terminal.cols = destinationCols
       let sawViewportClear = false
       const preResizeBarrier = { release: null as (() => void) | null }
-      pane.terminal.write = vi.fn((data: string, callback?: () => void) => {
+      pane.terminal.write = vi.fn((chunk: string, callback?: () => void) => {
+        const data = terminalWriteText(chunk)
         written.push(data)
         operations.push({ kind: 'write', data })
         if (data === viewportClear) {

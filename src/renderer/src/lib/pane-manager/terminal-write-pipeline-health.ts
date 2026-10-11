@@ -12,8 +12,10 @@
 // pane's PTY connection) that requests pane recovery — a remount that rebuilds
 // the xterm and reattaches the live PTY.
 
+import { writeTerminalParseBarrier } from './terminal-parse-barrier'
+
 type WriteTarget = {
-  write(data: string, callback?: () => void): void
+  write(data: string | Uint8Array, callback?: () => void): void
 }
 
 export type UndeliverableWriteReason = 'write-stalled' | 'replay-wedged'
@@ -160,7 +162,7 @@ function armTerminalWritePipelineWatch(
     }
     const probeQueuedAtGeneration = captureTerminalParseProgressGeneration(terminal)
     try {
-      terminal.write('', () => {
+      writeTerminalParseBarrier(terminal, () => {
         // Why: replay guards share this terminal-scoped generation; even an
         // auxiliary FIFO probe proves the parser is alive and making progress.
         recordTerminalParseProgress(terminal)

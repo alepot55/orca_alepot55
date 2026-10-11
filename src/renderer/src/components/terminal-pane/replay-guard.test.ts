@@ -37,8 +37,8 @@ function makeRef(): ReplayingPanesRef {
 }
 
 type FakeTerminal = {
-  write: (data: string, cb?: () => void) => void
-  lastData: string[]
+  write: (data: string | Uint8Array, cb?: () => void) => void
+  lastData: (string | Uint8Array)[]
   pendingCallbacks: (() => void)[]
   rows: number
   buffer: {
@@ -71,7 +71,7 @@ function makeFakePane(paneId: number): { pane: ManagedPane; terminal: FakeTermin
       refresh() {}
     },
     refresh() {},
-    write(data: string, cb?: () => void) {
+    write(data: string | Uint8Array, cb?: () => void) {
       terminal.lastData.push(data)
       if (cb) {
         pendingCallbacks.push(cb)
@@ -107,8 +107,8 @@ describe('replay-guard', () => {
       return 5
     }
     joinerTerminal.deregisterCharacterJoiner = () => undefined
-    terminal.write = (data: string, callback?: () => void) => {
-      events.push(`write:${data}`)
+    terminal.write = (data: string | Uint8Array, callback?: () => void) => {
+      events.push(`write:${typeof data === 'string' ? data : ''}`)
       if (callback) {
         terminal.pendingCallbacks.push(callback)
       }
@@ -427,10 +427,10 @@ describe('replay-guard stall handling (probe-certified release)', () => {
     void waitForTerminalReplayWritesParsed(terminal, { stallCheckMs: 1_000 }).then(() => {
       resolved = true
     })
-    expect(terminal.lastData).toEqual([''])
+    expect(terminal.lastData).toEqual([new Uint8Array(0)])
 
     vi.advanceTimersByTime(1_000)
-    expect(terminal.lastData).toEqual(['', ''])
+    expect(terminal.lastData).toEqual([new Uint8Array(0), new Uint8Array(0)])
     expect(resolved).toBe(false)
     vi.advanceTimersByTime(60_000)
     expect(resolved).toBe(false)
@@ -454,7 +454,7 @@ describe('replay-guard stall handling (probe-certified release)', () => {
 
     // Stall check fires: an empty probe write is enqueued behind the replay.
     vi.advanceTimersByTime(1_000)
-    expect(terminal.lastData).toEqual(['slow but alive', ''])
+    expect(terminal.lastData).toEqual(['slow but alive', new Uint8Array(0)])
     // Probe is pending → replay genuinely still parsing → guard holds.
     expect(isPaneReplaying(ref, 1)).toBe(true)
     vi.advanceTimersByTime(999)

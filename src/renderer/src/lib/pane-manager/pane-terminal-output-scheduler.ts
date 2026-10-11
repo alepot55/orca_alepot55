@@ -3,6 +3,7 @@ import {
   isTerminalWritePipelineCertifiedDead,
   recordTerminalParseProgress
 } from './terminal-write-pipeline-health'
+import { writeTerminalParseBarrier } from './terminal-parse-barrier'
 import { exposeTerminalOutputSchedulerDebugApi as exposeDebugApi } from './pane-terminal-output-scheduler-debug'
 import { flushTerminalOutputImpl } from './pane-terminal-output-flusher'
 import { writeTerminalOutputImpl } from './pane-terminal-output-writer'
@@ -95,7 +96,7 @@ export function waitForTerminalOutputParsed(terminal: TerminalOutputTarget): Pro
     }
     timer = setTimeout(finish, PARSE_SETTLE_TIMEOUT_MS)
     try {
-      terminal.write('', finishParsed)
+      writeTerminalParseBarrier(terminal, finishParsed)
     } catch {
       // Why: a synchronous rejection means this xterm can't accept even an empty FIFO probe; recovery must replace it before reuse.
       failTerminalWriteStallWatch(terminal)
