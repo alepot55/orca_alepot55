@@ -17,7 +17,7 @@ it(
   async () => {
     const userDataPath = mkdtempSync(join(tmpdir(), 'orca-runtime-close-intent-'))
     const refuseUnattributedMobileSessionTabClose = vi.fn().mockResolvedValue({
-      closed: true,
+      closed: false,
       refused: true,
       refusalReason: 'missing-intent',
       snapshotRepublished: true
