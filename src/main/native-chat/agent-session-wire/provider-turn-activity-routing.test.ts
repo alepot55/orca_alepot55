@@ -266,4 +266,90 @@ describe('provider turn activity routing', () => {
     expect(state.tombstones).toHaveLength(0)
     expect(state.rows.at(-1)).toMatchObject({ kind: 'turn', turnId: TURN_ID, state: 'completed' })
   })
+
+  describe('Claude compaction ahead of the send echo', () => {
+    const compacting = claudeMessage({ type: 'system', subtype: 'status', status: 'compacting' })
+    const sendStarted = claudeMessage({
+      type: 'command_lifecycle',
+      command_uuid: TURN_ID,
+      state: 'started',
+      session_id: 'claude-session'
+    })
+    const sendEcho = {
+      ...claudeMessage({
+        type: 'user',
+        uuid: TURN_ID,
+        session_id: 'claude-session',
+        parent_tool_use_id: null,
+        isReplay: true,
+        message: { role: 'user', content: [{ type: 'text', text: 'Investigate activity' }] }
+      }),
+      startsTurn: true as const
+    }
+
+    it('keys the activity to the started send until its turn opens', () => {
+      const state = recordingSink()
+      const translator = createClaudeJournalTranslator({ sink: state.sink })
+
+      translator.handle(sendStarted)
+      translator.handle(compacting)
+      expect(state.activities.at(-1)).toEqual({
+        turnId: TURN_ID,
+        text: 'Compacting the conversation',
+        precedesTurn: true
+      })
+
+      translator.handle(
+        claudeMessage({
+          type: 'system',
+          subtype: 'status',
+          status: null,
+          compact_result: 'success'
+        })
+      )
+      expect(state.activities.at(-1)).toBeNull()
+
+      translator.handle(compacting)
+      translator.handle(sendEcho)
+      expect(state.activities.at(-1)).toBeNull()
+
+      translator.handle(compacting)
+      expect(state.activities.at(-1)).toEqual({
+        turnId: TURN_ID,
+        text: 'Compacting the conversation'
+      })
+    })
+
+    it('publishes nothing for a compaction no send is waiting on', () => {
+      const state = recordingSink()
+      const translator = createClaudeJournalTranslator({ sink: state.sink })
+
+      translator.handle(compacting)
+      expect(state.activities).toEqual([])
+
+      translator.handle(sendStarted)
+      translator.handle(
+        claudeMessage({ type: 'result', subtype: 'success', is_error: false, result: 'Done' })
+      )
+      const published = state.activities.length
+      translator.handle(compacting)
+      expect(state.activities).toHaveLength(published)
+    })
+
+    it('leaves a send folded into the running turn on that turn', () => {
+      const state = recordingSink()
+      const translator = createClaudeJournalTranslator({ sink: state.sink })
+
+      translator.handle(sendEcho)
+      translator.handle({
+        ...sendStarted,
+        message: { ...sendStarted.message, command_uuid: 'folded-send' }
+      })
+      translator.handle(compacting)
+      expect(state.activities.at(-1)).toEqual({
+        turnId: TURN_ID,
+        text: 'Compacting the conversation'
+      })
+    })
+  })
 })

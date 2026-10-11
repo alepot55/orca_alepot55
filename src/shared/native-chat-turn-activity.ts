@@ -81,12 +81,19 @@ export function selectStructuredAgentTurnActivity(
   turnId: string | null,
   providerActivity?: AgentSessionTurnActivity | null
 ): NativeChatTurnActivity | null {
-  if (!turnId || providerActivity?.turnId !== turnId) {
+  if (!providerActivity) {
+    return null
+  }
+  // With no turn running, only activity the host keyed to a send whose turn is still to open applies.
+  if (turnId ? providerActivity.turnId !== turnId : providerActivity.precedesTurn !== true) {
     return null
   }
   const text = activityLine(providerActivity.text)
   if (!text) {
     return null
+  }
+  if (!turnId) {
+    return { kind: 'description', text }
   }
   const turnStartIndex = items.findLastIndex((item) => {
     const turn = readAgentJournalTurn(item.body)
