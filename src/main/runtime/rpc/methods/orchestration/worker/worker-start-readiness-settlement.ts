@@ -12,6 +12,7 @@ import {
 } from './worker-start-turn-observation'
 import {
   monitorWorkerSetup,
+  workerStartReceiptWarning,
   type createStructuredWorkerSessionForWorktree,
   type WorkerEffect,
   type WorkerSetupReceipt
@@ -47,6 +48,7 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
   onStage: (stage: 'dispatch_input' | 'turn_observation') => void
 }): Promise<unknown> {
   const { runtime, db, run, task, structuredSession, terminalHandle, effects } = args
+  const warning = workerStartReceiptWarning(effects, args.terminalRevealWarning)
 
   args.onStage('dispatch_input')
   const delivery = await deliverWorkerDispatchPreamble({
@@ -132,7 +134,7 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
           : [`orca terminal read --terminal ${terminalHandle} --screen`]),
         `orca orchestration worker-abandon --dispatch ${args.dispatchId} --json`
       ],
-      ...(args.terminalRevealWarning ? { warning: args.terminalRevealWarning } : {})
+      ...(warning ? { warning } : {})
     }
   }
   const worker = alreadySettled
@@ -158,6 +160,6 @@ export async function deliverAndSettleWorkerStartReadiness(args: {
     effects,
     ...(deliveredPrompt ? { prompt: deliveredPrompt } : {}),
     residualResources: [],
-    ...(args.terminalRevealWarning ? { warning: args.terminalRevealWarning } : {})
+    ...(warning ? { warning } : {})
   }
 }
