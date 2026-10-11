@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
     readRecord: vi.fn(),
     deploy: vi.fn(),
     probe: vi.fn(),
+    wake: vi.fn(),
     startTunnel: vi.fn(),
     ensureTunnel: vi.fn(),
     closeTunnel: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock('./orcad-artifact-materializer', () => ({
 }))
 vi.mock('./orcad-local-build-hash', () => ({ computeLocalOrcadBuildHash: () => 'build-hash' }))
 vi.mock('./orcad-active-readiness', () => ({ probeActiveOrcadReadiness: mocks.probe }))
+vi.mock('./orcad-managed-wake', () => ({ wakeStoppedManagedOrcad: mocks.wake }))
 vi.mock('./orcad-terminal-census-client', () => ({
   collectManagedTerminalCensus: async () => ({
     liveSessions: 0,
@@ -150,6 +152,7 @@ beforeEach(() => {
   mocks.recover.mockResolvedValue({ outcome: 'none' })
   mocks.deploy.mockResolvedValue({ outcome: 'installed-and-activated', fullVersion: VERSION })
   mocks.probe.mockResolvedValue(readiness())
+  mocks.wake.mockResolvedValue({ outcome: 'serving' })
   mocks.startTunnel.mockResolvedValue(46_768)
   mocks.closeTunnel.mockResolvedValue(undefined)
   mocks.ensureTunnel.mockResolvedValue(undefined)
@@ -185,6 +188,7 @@ describe('createManagedOrcadEnvironment', () => {
       }
     )
     expect(mocks.closeTunnel).not.toHaveBeenCalled()
+    expect(mocks.wake).not.toHaveBeenCalled()
   })
 
   it('tunnels to the port orcad bound when 6768 is taken, and keeps 6768 as its launch port', async () => {
@@ -362,6 +366,39 @@ describe('createManagedOrcadEnvironment', () => {
     const result = await deploy()
     expect(result).toMatchObject({ outcome: 'already-current' })
     expect(listEnvironments(userDataPath).map((entry) => entry.id)).toEqual([claimedId])
+  })
+
+  it('starts an already active server whose process exited, then registers it', async () => {
+    let running = false
+    mocks.wake.mockImplementation(async () => {
+      running = true
+      return { outcome: 'started', readiness: readiness() }
+    })
+    mocks.probe.mockImplementation(async () => {
+      if (!running) {
+        throw new Error(`orcad ${VERSION} is recorded active but its process has exited.`)
+      }
+      return readiness()
+    })
+    mocks.deploy.mockResolvedValueOnce({ outcome: 'already-active', fullVersion: VERSION })
+
+    await expect(deploy()).resolves.toMatchObject({
+      outcome: 'already-current',
+      activeVersion: VERSION
+    })
+    expect(mocks.wake).toHaveBeenCalledOnce()
+    expect(mocks.wake.mock.calls[0]?.[0]).toMatchObject({ remoteHome: '/home/dev', port: 6_768 })
+    expect(listEnvironments(userDataPath)).toHaveLength(1)
+  })
+
+  it('does not register an already active server that a held fence kept from starting', async () => {
+    mocks.wake.mockResolvedValueOnce({ outcome: 'fenced' })
+    mocks.deploy.mockResolvedValueOnce({ outcome: 'already-active', fullVersion: VERSION })
+
+    await expect(deploy()).rejects.toThrow('holds this host')
+    expect(mocks.probe).not.toHaveBeenCalled()
+    expect(mocks.startTunnel).not.toHaveBeenCalled()
+    expect(listEnvironments(userDataPath)).toEqual([])
   })
 
   it('closes the tunnel it opened when registration fails', async () => {

@@ -19,6 +19,7 @@ import { runTargetLifecycle } from '../ipc/ssh-target-lifecycle-queue'
 import type { ServeReadiness } from '../server/serve-readiness'
 import { recoverInterruptedOrcadActivation } from './orcad-activation-recovery'
 import { probeActiveOrcadReadiness } from './orcad-active-readiness'
+import { startStoppedActiveOrcad } from './orcad-already-active-start'
 import { materializeOrcadArtifact } from './orcad-artifact-materializer'
 import { CURRENT_ORCAD_DAEMON_PROTOCOL } from './orcad-daemon-protocol-crossing'
 import { ensureOrcadManagedTunnel } from './orcad-managed-tunnel'
@@ -138,6 +139,9 @@ export async function runManagedOrcadUpdate(
     return deferral
   }
   clearManagedOrcadUpdateDeferral(environment.id)
+  if (result.outcome === 'already-active') {
+    await startStoppedActiveOrcad(slot)
+  }
   const readiness = await probeManagedOrcadReadiness(
     context,
     localOrcadDir,
