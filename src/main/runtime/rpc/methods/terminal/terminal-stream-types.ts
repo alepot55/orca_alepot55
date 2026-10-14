@@ -1,4 +1,8 @@
 import type { TerminalOscLinkRange } from '../../../../../shared/terminal-osc-link-ranges'
+import type {
+  TerminalReplyQueryScanState,
+  TerminalReplyQuerySequence
+} from '../../../../../shared/terminal-reply-query-scan'
 import type { TerminalSnapshotUnavailableReason } from '../../../../../shared/terminal-snapshot-unavailability'
 import type {
   TerminalOutputFrameChunk,
@@ -48,6 +52,13 @@ export type SerializedSnapshot = {
   terminalOwner?: 'shell'
 } | null
 
+export type PendingReplyQueries = {
+  scanState: TerminalReplyQueryScanState
+  sequences: TerminalReplyQuerySequence[]
+  chars: number
+  overflowed: boolean
+}
+
 export type TerminalViewportClient = {
   id: string
   type?: 'mobile' | 'desktop'
@@ -88,6 +99,8 @@ export type TerminalMultiplexStream = {
   pendingOutput: TerminalOutputChunk[]
   pendingOutputBytes: number
   pendingOutputOverflowed: boolean
+  // Why: the initial snapshot drops buffered output it covers, queries included; null once it is published.
+  initialSnapshotQueries: PendingReplyQueries | null
   // Cols the mobile client last rewrapped to; re-stream full scrollback only when width actually changes.
   lastResizeCols: number | undefined
   resizeGeneration: number

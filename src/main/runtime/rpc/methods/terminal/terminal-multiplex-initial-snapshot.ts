@@ -3,7 +3,7 @@ import {
   sendSnapshotFrames,
   serializeBudgetedMobileSnapshot
 } from './terminal-snapshot-publication'
-import { getOutputAfterSnapshotSeq } from './terminal-stream-replay'
+import { getOutputAfterSnapshotSeq, getSnapshotQueryReplayData } from './terminal-stream-replay'
 import { getTerminalInputSequenceLedger } from './terminal-input-sequence-ledger'
 import {
   isMultiplexStreamAttached,
@@ -102,6 +102,18 @@ export async function publishMultiplexInitialSnapshot(
   // Why: baseline for resize re-stream gating; the client already rewrapped to these cols via the initial snapshot replay.
   stream.lastResizeCols = serialized?.cols ?? size?.cols
   stream.buffering = false
+  const queryReplay = getSnapshotQueryReplayData(
+    stream.initialSnapshotQueries,
+    snapshotOutputSeq,
+    initialOutputOverflowed,
+    serialized?.pendingEscapeTailAnsi
+  )
+  stream.initialSnapshotQueries = null
+  if (queryReplay) {
+    // Why: main's model left these to this viewer and the snapshot carries none; seq-less so client seq trimming keeps them.
+    stream.outputBatcher.push(queryReplay)
+    stream.outputBatcher.flush()
+  }
   const pendingOutput = stream.pendingOutput.splice(0)
   if (!initialOutputOverflowed) {
     for (const chunk of pendingOutput) {
