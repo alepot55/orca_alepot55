@@ -2,6 +2,7 @@ import type { ManagedPane } from '@/lib/pane-manager/pane-manager'
 import { writeForegroundTerminalChunk } from '@/lib/pane-manager/pane-terminal-foreground-render-settle'
 import { recordRendererCrashBreadcrumb } from '@/lib/crash-breadcrumb-recorder'
 import { ensureArabicShapingJoinerForText } from '@/lib/pane-manager/terminal-arabic-shaping-joiner'
+import { writeTerminalParseBarrier } from '@/lib/pane-manager/terminal-parse-barrier'
 import {
   captureTerminalParseProgressGeneration,
   hasTerminalParseProgressSince,
@@ -144,7 +145,7 @@ function engageReplayGuard(
     const probeQueuedAtGeneration = captureTerminalParseProgressGeneration(terminal)
     try {
       // FIFO certification: this callback runs only after every replay byte queued before it has parsed.
-      terminal.write('', () => {
+      writeTerminalParseBarrier(terminal, () => {
         recordTerminalParseProgress(terminal)
         release('lost-completion')
       })
@@ -263,7 +264,7 @@ export function waitForTerminalReplayWritesParsed(
       }
       try {
         // Why: empty write is FIFO after replay bytes; its callback recovers a lost sentinel without changing parser state.
-        terminal.write('', finish)
+        writeTerminalParseBarrier(terminal, finish)
       } catch {
         // A disposed terminal cannot parse any remaining replay bytes.
         finish()
@@ -272,7 +273,7 @@ export function waitForTerminalReplayWritesParsed(
     stallTimer = setTimeout(queueProbe, options.stallCheckMs ?? REPLAY_GUARD_STALL_CHECK_MS)
     try {
       // Why empty: keep pendingEscapeTailAnsi as the final replay bytes; xterm still orders this completion after earlier writes.
-      terminal.write('', finish)
+      writeTerminalParseBarrier(terminal, finish)
     } catch {
       // A disposed terminal cannot parse any remaining replay bytes.
       finish()

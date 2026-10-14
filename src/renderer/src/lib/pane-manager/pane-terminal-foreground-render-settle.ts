@@ -21,7 +21,7 @@ export type ForegroundTerminalOutputTarget = {
     refresh?(start: number, end: number, sync?: boolean): void
   }
   refresh?(start: number, end: number): void
-  write(data: string, callback?: () => void): void
+  write(data: string | Uint8Array, callback?: () => void): void
 }
 
 type ForegroundTerminalWriteOptions = {
