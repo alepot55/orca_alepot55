@@ -7978,7 +7978,11 @@
           "274af61bc0": "système",
           "6e6df3a09a": "Choisir un fichier personnalisé",
           "76e02467b8": "Changer de fichier personnalisé",
-          "d3756cf5bc": "désactivé"
+          "d3756cf5bc": "désactivé",
+          "macosNotDisplayedTitle": "macOS n'a pas affiché la notification",
+          "macosNotDisplayedDescription": "Activez « Autoriser les notifications » pour Orca dans Réglages Système.",
+          "windowsNotDisplayedTitle": "Windows n'a pas affiché la notification",
+          "windowsNotDisplayedDescription": "Activez les notifications d'Orca dans les Paramètres Windows."
         },
         "OpenAiTranscriptionKeyDialog": {
           "fa83512e48": "Enregistrer la clé",
@@ -14936,6 +14940,9 @@
           "FeatureWallTourPanel": {
             "af7d622f6f": "Facultatif"
           },
+          "FeatureWallTourSurface": {
+            "footerReopen": "Rouvrez-le à tout moment depuis Aide > Découvrir Orca."
+          },
           "KeepAwakeCard": {
             "209713d3c7": "Facultatif"
           },
@@ -15252,7 +15259,8 @@
             "53905bd076": "Aperçu de développement : ouverture du terminal de configuration des skills.",
             "1da82af45b": "L'Orca CLI requiert votre attention",
             "ce13a742d0": "`orca` enregistré dans le PATH.",
-            "d1a86c7eb5": "Ouvrez les paramètres pour terminer la configuration du CLI."
+            "d1a86c7eb5": "Ouvrez les paramètres pour terminer la configuration du CLI.",
+            "installFailed": "Échec de l'installation d'Orca CLI."
           },
           "CmdJPaletteFeatureTipVisual": {
             "ab94e16d44": "Créer le worktree « {{value0}} »",
@@ -16204,7 +16212,16 @@
             "b2e36f53a1": "Échec de l'envoi du rapport de plantage. Le ticket de diagnostic {{value0}} a été téléversé, mais pas associé.",
             "ead6fc0510": "Aucun rapport de plantage automatique n'a été capturé. Vous pouvez toujours envoyer des détails et inclure les journaux de diagnostic récents lorsqu'ils sont disponibles.",
             "b082f27490": "Joindre les journaux de diagnostic récents",
-            "e59f0b9427": "Envoie avec le rapport un lot de journaux anonymisés et de taille limitée."
+            "e59f0b9427": "Envoie avec le rapport un lot de journaux anonymisés et de taille limitée.",
+            "titleManual": "Signaler un plantage",
+            "titleRendererError": "Orca a rencontré une erreur d'interface récupérable",
+            "titleCrashed": "Orca s'est fermé de manière inattendue",
+            "descriptionManual": "Envoyez un rapport de plantage respectueux de la vie privée. Les journaux de diagnostic récents et anonymisés sont inclus lorsqu'ils sont disponibles.",
+            "descriptionRendererError": "Envoyez un rapport de diagnostic respectueux de la vie privée pour nous aider à comprendre quelle partie de l'interface a échoué.",
+            "descriptionCrashed": "Envoyez un rapport de diagnostic respectueux de la vie privée pour nous aider à comprendre ce qui s'est passé.",
+            "placeholderManual": "Facultatif : que s'est-il passé ?",
+            "placeholderRendererError": "Facultatif : que faisiez-vous avant cette erreur d'interface ?",
+            "placeholderCrashed": "Facultatif : que faisiez-vous avant la fermeture d'Orca ?"
           },
           "submit": {
             "notice": {

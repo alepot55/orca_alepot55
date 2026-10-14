@@ -12,15 +12,27 @@ export function getSystemNotificationSettingsCopy(
 ): SystemNotificationSettingsCopy | null {
   if (platform === 'darwin') {
     return {
-      failureTitle: 'macOS did not show the notification',
-      failureDescription: 'Enable Allow notifications for Orca in System Settings.'
+      failureTitle: translate(
+        'auto.components.settings.NotificationsPane.macosNotDisplayedTitle',
+        'macOS did not show the notification'
+      ),
+      failureDescription: translate(
+        'auto.components.settings.NotificationsPane.macosNotDisplayedDescription',
+        'Enable Allow notifications for Orca in System Settings.'
+      )
     }
   }
 
   if (platform === 'win32') {
     return {
-      failureTitle: 'Windows did not show the notification',
-      failureDescription: 'Enable notifications for Orca in Windows Settings.'
+      failureTitle: translate(
+        'auto.components.settings.NotificationsPane.windowsNotDisplayedTitle',
+        'Windows did not show the notification'
+      ),
+      failureDescription: translate(
+        'auto.components.settings.NotificationsPane.windowsNotDisplayedDescription',
+        'Enable notifications for Orca in Windows Settings.'
+      )
     }
   }
 
