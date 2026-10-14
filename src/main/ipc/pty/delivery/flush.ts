@@ -10,7 +10,11 @@ import {
   PTY_BATCH_FLUSH_MAX_WRITES,
   PTY_DISPATCHER_READY_WATCHDOG_MS
 } from './constants'
-import { getDroppedMode2031RendererData, getDroppedSynchronizedOutputRendererData } from './pending'
+import {
+  getDroppedMode2031RendererData,
+  getDroppedSynchronizedOutputRendererData,
+  pendingPtyDataEndSeq
+} from './pending'
 import { resolveSynchronizedOutputSafeSplit } from '../../../../shared/terminal-synchronized-output-scan'
 import { makePtyDataPayload, sendModelRestoreNeededMarker, sendPtyDataToRenderer } from './payload'
 import { warnIfDroppingHiddenBytesForVisiblePty } from './debug-snapshot'
@@ -108,6 +112,12 @@ export function flushPendingData(session: PtyIpcSession): void {
         session.pendingData.remove(selection)
         session.pendingOverflowMarkedPtys.delete(id)
         session.updateProducerFlowControl(id)
+        // Why: queued bytes were left to the view at ingestion, which will now never parse them.
+        session.runtime?.answerQueriesInGateDroppedPtyData(
+          id,
+          pending.data,
+          pendingPtyDataEndSeq(pending)
+        )
         const drop = recordHiddenRendererPtyDataDrop(id, pending.data.length)
         warnIfDroppingHiddenBytesForVisiblePty(session, id, pending.data.length)
         if (drop.shouldEmitRestoreMarker) {

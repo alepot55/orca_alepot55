@@ -9,6 +9,7 @@ import {
   normalizeTerminalTitle
 } from '../../../../shared/agent-detection'
 import { shouldModelAnswerHiddenPtyQueries } from '../../terminal-model-query-authority'
+import { selectGateDroppedReplayQueries } from './gate-dropped-query-replay'
 
 export abstract class OrcaRuntimeWithMaybeHydrateHeadlessFromRenderer extends OrcaRuntimeWithSerializeMainTerminalBuffer {
   protected abstract getOrCreateHeadlessTerminal(ptyId: string): RuntimeHeadlessTerminal
@@ -163,13 +164,48 @@ export abstract class OrcaRuntimeWithMaybeHydrateHeadlessFromRenderer extends Or
   }
 
   /** Per-chunk reply-ownership capture (Phase 5). Evaluated synchronously at
-   *  ingestion only — never re-read at reply time. */
+   *  ingestion, or when the gate drops queued bytes — never re-read at reply time. */
   protected shouldAnswerQueriesForLiveChunk(ptyId: string): boolean {
     return shouldModelAnswerHiddenPtyQueries({
       ptyId,
       settings: this.store?.getSettings(),
       hasRemoteViewSubscriber: this.hasRemoteTerminalViewSubscriber(ptyId)
     })
+  }
+
+  /** Queued renderer bytes were view-owned at ingestion; when the gate drops
+   *  them instead of delivering, the model is the only one left to answer.
+   *  `droppedThroughSeq` is the output sequence the dropped bytes end at. */
+  answerQueriesInGateDroppedPtyData(
+    ptyId: string,
+    data: string,
+    droppedThroughSeq: number | undefined
+  ): void {
+    const state = this.headlessTerminals.get(ptyId)
+    if (!state || !data.includes('\x1b') || !this.shouldAnswerQueriesForLiveChunk(ptyId)) {
+      return
+    }
+    const queries = selectGateDroppedReplayQueries(data)
+    if (queries.length === 0) {
+      return
+    }
+    const completion = state.writeChain.then(async () => {
+      // Why: injecting into a half-parsed live escape sequence would corrupt the model.
+      if (this.headlessTerminals.get(ptyId) !== state || state.emulator.partialEscapeTailAnsi) {
+        return
+      }
+      // Why: once the model has parsed later output, a CPR/DECRQM reply would be stale; skip it like the renderer does.
+      const atDroppedEnd =
+        droppedThroughSeq !== undefined && state.outputSequence === droppedThroughSeq
+      const replay = queries
+        .filter((query) => atDroppedEnd || !query.stateful)
+        .map((query) => query.sequence)
+        .join('')
+      if (replay) {
+        await state.emulator.write(replay, { forwardQueryReplies: true })
+      }
+    })
+    state.writeChain = completion.catch(() => {})
   }
 
   protected trackHeadlessTerminalData(
