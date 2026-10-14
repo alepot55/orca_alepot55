@@ -156,6 +156,44 @@ function mouseEventForRow(
   } as unknown as MouseEvent
 }
 
+const FRAMED_COLS = 40
+const FRAMED_LINE_PREFIX = ' │   '
+const FRAMED_LINE_SUFFIX = '│ '
+const FRAMED_CONTENT_WIDTH = FRAMED_COLS - FRAMED_LINE_PREFIX.length - FRAMED_LINE_SUFFIX.length
+const FRAMED_URL_BASE = 'https://example.com/'
+const TWO_ROW_FRAMED_URL = `${FRAMED_URL_BASE}${'a'.repeat(FRAMED_CONTENT_WIDTH - 20)}/path/to/page?id=42`
+
+function splitFramedUrl(url: string, width: number): string[] {
+  return [url.slice(0, width), url.slice(width)]
+}
+
+/** A URL row that stops `gap` cells before the right frame. */
+function framedUrlRow(gap: number): string {
+  return `${FRAMED_URL_BASE}${'a'.repeat(FRAMED_CONTENT_WIDTH - FRAMED_URL_BASE.length - gap)}`
+}
+
+function makeFramedTerminal(urlRows: string[]): ReturnType<typeof makeTerminal> {
+  return makeTerminal({
+    cols: FRAMED_COLS,
+    urlRows,
+    linePrefix: FRAMED_LINE_PREFIX,
+    lineSuffix: FRAMED_LINE_SUFFIX,
+    softWrapped: false
+  })
+}
+
+function framedClickDeps(terminal: Terminal): Parameters<typeof handleTerminalWebLinkClick>[2] {
+  return { terminal, worktreeId: 'wt-1', worktreePath: '/tmp', startupCwd: '/tmp' }
+}
+
+function mouseUpFallback(registrations: ListenerRegistration[]): EventListener {
+  const listener = registrations.find(
+    ([name, _listener, options]) => name === 'mouseup' && options === undefined
+  )?.[1]
+  expect(listener).toBeDefined()
+  return listener!
+}
+
 describe('hard-wrapped terminal HTTP clicks', () => {
   beforeEach(() => {
     vi.stubGlobal('navigator', { userAgent: 'Macintosh' })
@@ -269,6 +307,68 @@ describe('hard-wrapped terminal HTTP clicks', () => {
     expect(openUrlMock).toHaveBeenCalledTimes(1)
     expect(openUrlMock).toHaveBeenCalledWith(FULL_URL)
   })
+
+  it('opens the full URL when the first row of a two-row framed URL is clicked', () => {
+    const urlRows = splitFramedUrl(TWO_ROW_FRAMED_URL, FRAMED_CONTENT_WIDTH)
+    const { terminal } = makeFramedTerminal(urlRows)
+
+    // WebLinksAddon only reports the physical row it matched.
+    expect(
+      handleTerminalWebLinkClick(urlRows[0], mouseEventForRow(0), framedClickDeps(terminal))
+    ).toBe(true)
+
+    expect(openUrlMock).toHaveBeenCalledOnce()
+    expect(openUrlMock).toHaveBeenCalledWith(TWO_ROW_FRAMED_URL)
+  })
+
+  it('opens the full URL when the second row of a two-row framed URL is clicked', () => {
+    const urlRows = splitFramedUrl(TWO_ROW_FRAMED_URL, FRAMED_CONTENT_WIDTH)
+    const { terminal, registrations } = makeFramedTerminal(urlRows)
+    const disposable = installHttpLinkClickFallback(terminal, { worktreeId: 'wt-1' })
+
+    // The second row has no scheme, so only the mouseup fallback can see this click.
+    mouseUpFallback(registrations)(mouseEventForRow(1))
+
+    expect(openUrlMock).toHaveBeenCalledOnce()
+    expect(openUrlMock).toHaveBeenCalledWith(TWO_ROW_FRAMED_URL)
+    disposable.dispose()
+  })
+
+  it.each([1, 2])(
+    'joins a two-row framed URL whose first row stops %i cell(s) short of the frame',
+    (gap) => {
+      const firstRow = framedUrlRow(gap)
+      const fullUrl = `${firstRow}/more?id=42`
+      const { terminal } = makeFramedTerminal([firstRow, '/more?id=42'])
+
+      expect(
+        handleTerminalWebLinkClick(firstRow, mouseEventForRow(0), framedClickDeps(terminal))
+      ).toBe(true)
+
+      expect(openUrlMock).toHaveBeenCalledOnce()
+      expect(openUrlMock).toHaveBeenCalledWith(fullUrl)
+    }
+  )
+
+  it.each([3, 4])(
+    'keeps a framed URL separate from an aligned token when its row stops %i cells short of the frame',
+    (gap) => {
+      const firstRow = framedUrlRow(gap)
+      const { terminal, registrations } = makeFramedTerminal([firstRow, 'Done'])
+      const disposable = installHttpLinkClickFallback(terminal, { worktreeId: 'wt-1' })
+
+      expect(
+        handleTerminalWebLinkClick(firstRow, mouseEventForRow(0), framedClickDeps(terminal))
+      ).toBe(true)
+      expect(openUrlMock).toHaveBeenCalledOnce()
+      expect(openUrlMock).toHaveBeenCalledWith(firstRow)
+
+      openUrlMock.mockReset()
+      mouseUpFallback(registrations)(mouseEventForRow(1))
+      expect(openUrlMock).not.toHaveBeenCalled()
+      disposable.dispose()
+    }
+  )
 
   it('reconstructs supported URLs spanning more than twenty framed rows', () => {
     const cols = 80

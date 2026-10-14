@@ -11,8 +11,8 @@ const HTTP_FRAGMENT_PATTERN = /^[^\s"'!*(){}|\\^<>`│┃║╎╏┆┇┊┋]*
 const VERTICAL_LAYOUT_FRAME_PATTERN = /[│┃║╎╏┆┇┊┋|]/
 const NON_LAYOUT_SUFFIX_PATTERN = /[^\s│┃║╎╏┆┇┊┋|]/
 const HARD_WRAP_CONTINUATION_SUFFIX_PATTERN = /[/?&=#%+:-]$/
-const MIN_HARD_WRAPPED_HTTP_ROWS = 3
 const MIN_HARD_WRAP_FILL_RATIO = 0.8
+const MAX_TWO_ROW_FRAME_GAP_CELLS = 2
 
 type TranslatedLine = ReturnType<typeof translateLineWithColumns>
 
@@ -44,6 +44,7 @@ function buildCandidateFromStart(
   let rightFrameColumn: number | null = null
   let previousRowCanContinue = true
   let startRowFilled = false
+  let startRowReachesFrame = false
   const rows: WrappedLogicalLine['rows'] = []
 
   for (let rowY = startY; rowY < startY + TERMINAL_HTTP_URL_MAX_HARD_WRAPPED_ROWS; rowY++) {
@@ -102,13 +103,14 @@ function buildCandidateFromStart(
     const fillsRow = contentWidth > 0 && fragmentWidth / contentWidth >= MIN_HARD_WRAP_FILL_RATIO
     if (rowY === startY) {
       startRowFilled = fillsRow
+      startRowReachesFrame = contentWidth - fragmentWidth <= MAX_TWO_ROW_FRAME_GAP_CELLS
     }
     previousRowCanContinue = HARD_WRAP_CONTINUATION_SUFFIX_PATTERN.test(fragment) || fillsRow
   }
 
-  if (rows.length > 1 && (rows.length < MIN_HARD_WRAPPED_HTTP_ROWS || !startRowFilled)) {
-    // Why: a short complete URL can legitimately end in `/`; one adjacent
-    // framed token is not enough evidence that the URL continued onto it.
+  if (rows.length > 1 && !(rows.length === 2 ? startRowReachesFrame : startRowFilled)) {
+    // Why: a complete URL can end near the frame or in `/`; one adjacent framed token
+    // only continues it when the start row stops within the frame's padding.
     rows.splice(1)
     text = rows[0]?.text ?? ''
   }
