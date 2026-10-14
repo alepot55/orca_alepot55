@@ -55,6 +55,30 @@ export function worktreeIdsEqual(left: string, right: string): boolean {
   return leftKey === null ? left === right : leftKey === worktreeIdComparisonKey(right)
 }
 
+/**
+ * The spelling the host stored for `worktreeId`: the id itself when stored verbatim, else the one
+ * stored id that differs only in path spelling. Unknown or ambiguous ids come back unchanged.
+ */
+export function findStoredWorktreeIdSpelling(
+  worktreeId: string,
+  storedIds: Iterable<string>
+): string {
+  const comparisonKey = worktreeIdComparisonKey(worktreeId)
+  if (comparisonKey === null) {
+    return worktreeId
+  }
+  const aliases = new Set<string>()
+  for (const storedId of storedIds) {
+    if (storedId === worktreeId) {
+      return worktreeId
+    }
+    if (worktreeIdComparisonKey(storedId) === comparisonKey) {
+      aliases.add(storedId)
+    }
+  }
+  return aliases.size === 1 ? [...aliases][0] : worktreeId
+}
+
 export function splitWorktreeId(worktreeId: string): ParsedWorktreeId | null {
   const separatorIdx = worktreeId.indexOf(WORKTREE_ID_SEPARATOR)
   if (separatorIdx === -1) {

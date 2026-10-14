@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   WORKTREE_ID_SEPARATOR,
+  findStoredWorktreeIdSpelling,
   getRepoIdFromWorktreeId,
   getRepoMainWorktreeId,
   getWorktreePathBasenameFromId,
@@ -188,5 +189,47 @@ describe('worktreeIdComparisonKey path-spelling parity for id: selectors (#16243
     expect(key('repo-a')).toBeNull()
     expect(key('repo-a::')).toBeNull()
     expect(key('/srv/workspaces/plugin')).toBeNull()
+  })
+})
+
+describe('findStoredWorktreeIdSpelling', () => {
+  const stored = String.raw`repo-1::G:\git\example`
+
+  it('returns the stored backslash spelling for a forward-slash alias', () => {
+    expect(findStoredWorktreeIdSpelling('repo-1::G:/git/example', ['repo-2::/x', stored])).toBe(
+      stored
+    )
+  })
+
+  it('keeps an id that is stored verbatim even when another spelling is also stored', () => {
+    expect(findStoredWorktreeIdSpelling(stored, ['repo-1::G:/git/example', stored])).toBe(stored)
+  })
+
+  it('leaves the id alone when two different spellings are stored', () => {
+    const slash = 'repo-1::G:/git/example'
+    expect(findStoredWorktreeIdSpelling('repo-1::g:/git/example', [stored, slash])).toBe(
+      'repo-1::g:/git/example'
+    )
+  })
+
+  it('leaves unknown, other-repo and malformed ids alone', () => {
+    expect(findStoredWorktreeIdSpelling('repo-1::G:/git/other', [stored])).toBe(
+      'repo-1::G:/git/other'
+    )
+    expect(findStoredWorktreeIdSpelling('repo-2::G:/git/example', [stored])).toBe(
+      'repo-2::G:/git/example'
+    )
+    expect(findStoredWorktreeIdSpelling('repo-1', [stored])).toBe('repo-1')
+  })
+
+  it('keeps folder workspace instances of one directory distinct', () => {
+    const first = String.raw`repo-1::G:\folder::workspace:123e4567-e89b-12d3-a456-426614174000`
+    const second = 'repo-1::G:/folder::workspace:123e4567-e89b-12d3-a456-426614174001'
+    expect(findStoredWorktreeIdSpelling(second, [first])).toBe(second)
+  })
+
+  it('does not fold backslashes in a POSIX path', () => {
+    const posix = String.raw`repo-1::/srv/a\b`
+    expect(findStoredWorktreeIdSpelling('repo-1::/srv/a/b', [posix])).toBe('repo-1::/srv/a/b')
   })
 })
