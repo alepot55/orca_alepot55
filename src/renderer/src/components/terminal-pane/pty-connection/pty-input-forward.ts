@@ -11,7 +11,7 @@ import { isPtyLocked } from '@/lib/pane-manager/mobile-driver-state'
 import { getAppliedSizeReadE2eDelayMs } from '../pty-applied-size-read-e2e-delay'
 import { createPtySizeReassertion } from '../pty-size-reassertion'
 import { isPaneReplaying } from '../replay-guard'
-import { isXtermMouseReport, isXtermWheelCursorKey } from '../terminal-pointer-input-sequences'
+import { isXtermPointerInput } from '../terminal-pointer-input-sequences'
 import { shouldDropQuarantinedTerminalInput } from '../terminal-input-quarantine'
 import {
   PANE_PTY_RESIZE_HOLD_FLUSH_EVENT,
@@ -39,9 +39,7 @@ export function installPtyInputForward(session: ConnectPanePtySession): void {
     // at that prompt once ?1049l lands. See replay-guard.ts.
     if (
       isPaneReplaying(session.deps.replayingPanesRef, session.pane.id) &&
-      (!wasUserInput ||
-        isXtermMouseReport(data) ||
-        (isXtermWheelCursorKey(data) && session.pane.terminal.buffer.active.type === 'alternate'))
+      (!wasUserInput || isXtermPointerInput(data, session.pane.terminal.buffer.active.type))
     ) {
       return
     }
@@ -174,6 +172,7 @@ export function installPtyInputForward(session: ConnectPanePtySession): void {
   session.onDataDisposable = subscribeToTerminalInputData(
     session.pane.terminal,
     (data, wasUserInput) => {
+      session.reportWorkerTerminalTakeoverInput(data, wasUserInput)
       const forward = wasUserInput ? forwardUserInput : forwardUnclassifiedInput
       if (session.deps.deferPtyInput) {
         session.deps.deferPtyInput(session.pane.id, data, forward)
