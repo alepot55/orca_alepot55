@@ -6,6 +6,7 @@ import {
   CloseTab
 } from '../../../../shared/rpc-contract/session-tabs-schemas-params'
 import { assertProjectedSessionTabVisible } from './session-tab-browser-placement-projection'
+import { resolveSessionTabPaneCloseTargetId } from './session-tab-close-target'
 import { assertAgentSessionTabDestructiveMutationSupported } from './session-tab-agent-status-projection'
 import { projectSessionTabsForClient } from './session-tabs-inventory'
 
@@ -15,20 +16,24 @@ export const SESSION_TAB_CLOSE_METHODS = [
     permission: 'workspace',
     params: CloseTab,
     handler: async (params, context) => {
-      if (context.clientKind) {
-        const raw = await context.runtime.listMobileSessionTabs(
-          params.worktree,
-          context.pairedDeviceId
-        )
+      const raw =
+        context.clientKind || params.leafId !== undefined
+          ? await context.runtime.listMobileSessionTabs(params.worktree, context.pairedDeviceId)
+          : undefined
+      const tabId =
+        raw && params.leafId !== undefined
+          ? resolveSessionTabPaneCloseTargetId(raw, params.tabId, params.leafId)
+          : params.tabId
+      if (context.clientKind && raw) {
         const visible = projectSessionTabsForClient(
           raw,
           context.clientKind,
           context.clientCapabilities
         )
-        assertProjectedSessionTabVisible(visible, params.tabId)
+        assertProjectedSessionTabVisible(visible, tabId)
         assertAgentSessionTabDestructiveMutationSupported(
           raw,
-          params.tabId,
+          tabId,
           context.clientKind,
           context.clientCapabilities
         )
@@ -45,19 +50,15 @@ export const SESSION_TAB_CLOSE_METHODS = [
           if (!params.reason && requiresIntent) {
             const result = await context.runtime.refuseUnattributedMobileSessionTabClose(
               params.worktree,
-              params.tabId
+              tabId
             )
             span.setAttribute('decision', `refused-${result.refusalReason ?? 'missing-intent'}`)
             return result
           }
-          const result = await context.runtime.closeMobileSessionTab(
-            params.worktree,
-            params.tabId,
-            {
-              reason: 'user',
-              ...(context.pairedDeviceId ? { clientNavigationId: context.pairedDeviceId } : {})
-            }
-          )
+          const result = await context.runtime.closeMobileSessionTab(params.worktree, tabId, {
+            reason: 'user',
+            ...(context.pairedDeviceId ? { clientNavigationId: context.pairedDeviceId } : {})
+          })
           span.setAttribute(
             'decision',
             result.refused ? `refused-${result.refusalReason ?? 'unknown'}` : 'allowed'
@@ -72,7 +73,7 @@ export const SESSION_TAB_CLOSE_METHODS = [
             origin: context.clientKind ?? 'in-process',
             deviceId: context.pairedDeviceId ?? 'in-process',
             worktree: params.worktree,
-            tabId: params.tabId,
+            tabId,
             closeReason:
               params.reason ??
               (requiresIntent

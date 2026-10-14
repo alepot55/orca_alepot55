@@ -469,7 +469,7 @@ describe('web runtime session tab actions', () => {
       .mockResolvedValueOnce({
         id: 'close',
         ok: true,
-        result: { closed: true, refused: true, snapshotRepublished: true }
+        result: { closed: false, refused: true, snapshotRepublished: true }
       })
       .mockResolvedValueOnce({ id: 'list', ok: true, result: authoritative })
 
@@ -520,7 +520,7 @@ describe('web runtime session tab actions', () => {
 
     const committed = await callFor({ closed: true })
     const refused = await callFor({
-      closed: true,
+      closed: false,
       refused: true,
       refusalReason: 'stale-terminal',
       snapshotRepublished: true
@@ -554,7 +554,7 @@ describe('web runtime session tab actions', () => {
       .mockResolvedValueOnce({
         id: 'close',
         ok: true,
-        result: { closed: true, refused: true }
+        result: { closed: false, refused: true }
       })
       .mockResolvedValueOnce({ id: 'list', ok: true, result: makeSnapshot() })
 

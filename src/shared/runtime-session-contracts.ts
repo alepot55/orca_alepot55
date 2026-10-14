@@ -207,7 +207,8 @@ export type RuntimeMobileSessionTabMove =
 export type RuntimeMobileSessionTabMoveResult = { moved: true }
 
 export type RuntimeMobileSessionTabCloseResult = {
-  closed: true
+  // Why: false only alongside `refused`; a refusal leaves the tab open.
+  closed: boolean
   refused?: true
   refusalReason?:
     | 'missing-intent'
