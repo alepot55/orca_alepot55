@@ -258,7 +258,9 @@ async function captureProcessTable(args: readonly string[], timeout = PS_TIMEOUT
     ;({ stdout } = await execFile('ps', [...args], {
       encoding: 'utf-8',
       timeout,
-      maxBuffer: PS_MAX_BUFFER_BYTES
+      maxBuffer: PS_MAX_BUFFER_BYTES,
+      // psOutputEnv()'s macOS pin, inlined at this module's max-lines budget; Linux reads etimes.
+      env: process.platform === 'darwin' ? { ...process.env, LC_ALL: 'en_US.UTF-8' } : undefined
     }))
   } catch (error) {
     // A ceiling hit is truncation, not absence: name it in the domain vocabulary.

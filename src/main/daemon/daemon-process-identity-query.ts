@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process'
+import { psOutputEnv } from '../../shared/ps-output-locale'
 
 const PS_IDENTITY_TIMEOUT_MS = 2_000
 
@@ -24,7 +25,7 @@ export function getPsProcessIdentity(
     const output = execFileSync('ps', ['-p', String(pid), '-o', 'lstart=', '-o', 'command='], {
       encoding: 'utf8',
       timeout: 2_000,
-      ...(options?.utc ? { env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' } } : {})
+      env: options?.utc ? { ...process.env, TZ: 'UTC', LC_ALL: 'C' } : psOutputEnv()
     })
     return parsePsProcessIdentity(output, options?.utc)
   } catch {
@@ -40,7 +41,8 @@ export async function getPsProcessIdentityAsync(pid: number): Promise<ProcessIde
         ['-p', String(pid), '-o', 'lstart=', '-o', 'command='],
         {
           encoding: 'utf8',
-          timeout: PS_IDENTITY_TIMEOUT_MS
+          timeout: PS_IDENTITY_TIMEOUT_MS,
+          env: psOutputEnv()
         },
         (error, output) => {
           if (error) {

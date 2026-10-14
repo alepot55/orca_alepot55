@@ -29,7 +29,12 @@ describe('daemon process inspection', () => {
       'node daemon-entry --socket daemon.sock'
     )
     expect(readTextFile).toHaveBeenCalledWith('/proc/42/cmdline')
-    expect(runCommand).toHaveBeenCalledWith('ps', ['-p', '42', '-o', 'command='], 2_000)
+    expect(runCommand).toHaveBeenCalledWith(
+      'ps',
+      ['-p', '42', '-o', 'command='],
+      2_000,
+      expect.objectContaining({ LC_TIME: 'C' })
+    )
   })
 
   it('uses a non-empty Linux procfs command line without spawning ps', async () => {
@@ -96,7 +101,12 @@ describe('daemon process inspection', () => {
     await expect(readMacosProcessStartedAtMs(42, { runCommand })).resolves.toBe(
       Date.parse('Sat Jan  1 00:00:00 2028')
     )
-    expect(runCommand).toHaveBeenCalledWith('ps', ['-p', '42', '-o', 'lstart='], 2_000)
+    expect(runCommand).toHaveBeenCalledWith(
+      'ps',
+      ['-p', '42', '-o', 'lstart='],
+      2_000,
+      expect.objectContaining({ LC_ALL: 'en_US.UTF-8' })
+    )
   })
 
   // CLK_TCK belongs to the host that runs getconf, so a second runner must not inherit the first's.
