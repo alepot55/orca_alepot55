@@ -688,6 +688,66 @@ describe('WebSocketTransport', () => {
       expect(transport.resolvedPort).toBe(fallbackPort)
     })
 
+    it('refuses to fall back when strictPort is set and the requested port is taken (#26603)', async () => {
+      // Why: `orca serve --port <P>` clients, firewall rules and tunnels target P, so a
+      // silent move to the persisted fallback, the ladder or a random port strands them.
+      const holder = new WebSocketTransport({ host: '127.0.0.1', port: 0 })
+      transports.push(holder)
+      await holder.start()
+      const takenPort = holder.resolvedPort
+      const fallbackPort = await reserveFreePort()
+
+      const transport = new WebSocketTransport({
+        host: '127.0.0.1',
+        port: takenPort,
+        fallbackPort,
+        fallbackLadder: [fallbackPort],
+        preferPinnedPort: true,
+        strictPort: true
+      })
+      transports.push(transport)
+      const withListen = transport as unknown as { tryListen(port: number): Promise<void> }
+      const attempted: number[] = []
+      const realTryListen = withListen.tryListen.bind(transport)
+      withListen.tryListen = (port: number) => {
+        attempted.push(port)
+        return realTryListen(port)
+      }
+
+      await expect(transport.start()).rejects.toThrow(
+        `Port ${takenPort} is unavailable (listen EADDRINUSE`
+      )
+      expect(attempted).toEqual([takenPort])
+    })
+
+    it('keeps the EADDRINUSE code on the strictPort error so startup failure telemetry classifies it', async () => {
+      const holder = new WebSocketTransport({ host: '127.0.0.1', port: 0 })
+      transports.push(holder)
+      await holder.start()
+
+      const transport = new WebSocketTransport({
+        host: '127.0.0.1',
+        port: holder.resolvedPort,
+        strictPort: true
+      })
+      transports.push(transport)
+
+      await expect(transport.start()).rejects.toMatchObject({ cause: { code: 'EADDRINUSE' } })
+    })
+
+    it('binds the requested port when strictPort is set and it is free', async () => {
+      const preferredPort = await reserveFreePort()
+      const transport = new WebSocketTransport({
+        host: '127.0.0.1',
+        port: preferredPort,
+        fallbackPort: await reserveFreePort(),
+        strictPort: true
+      })
+      transports.push(transport)
+      await transport.start()
+      expect(transport.resolvedPort).toBe(preferredPort)
+    })
+
     it('binds the preferred port when the persisted fallback is taken', async () => {
       const fallbackHolder = new WebSocketTransport({ host: '127.0.0.1', port: 0 })
       transports.push(fallbackHolder)

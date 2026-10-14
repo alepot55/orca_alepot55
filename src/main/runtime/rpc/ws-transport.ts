@@ -14,6 +14,7 @@ import {
   type WebSocketMessageHandler
 } from './node-websocket-lifecycle'
 import { RemoteRuntimeServerHeartbeat } from './remote-runtime-server-heartbeat'
+import { errorMessage } from '../../../shared/error-message'
 
 const WEBSOCKET_TRANSPORT_MAX_MESSAGE_BYTES = 1024 * 1024
 // Why: one desktop remote-host client can hold many concurrent streams, so keep the cap high enough that stale streams don't starve control RPCs.
@@ -43,6 +44,8 @@ export type WebSocketTransportOptions = {
   fallbackPort?: number
   // Why: serve --port clients dial the pinned port; prefer it first so a stale fallback can't steal the pin (issue #8535). Default keeps fallback-first (STA-1511).
   preferPinnedPort?: boolean
+  // Why: an explicit `serve --port` must bind exactly that port; a silent move strands pairing links, firewall rules and tunnels aimed at it (#26603).
+  strictPort?: boolean
   // Why: deterministic ports tried before an OS-assigned one, so a fallback stays stable across reboots.
   fallbackLadder?: readonly number[]
 }
@@ -57,6 +60,7 @@ export class WebSocketTransport implements RpcTransport {
   private readonly staticRoot: string | undefined
   private readonly fallbackPort: number | undefined
   private readonly preferPinnedPort: boolean
+  private readonly strictPort: boolean
   private readonly fallbackLadder: readonly number[]
   private persistedFallbackBindFailed = false
   private httpServer: HttpsServer | HttpServer | null = null
@@ -80,6 +84,7 @@ export class WebSocketTransport implements RpcTransport {
     staticRoot,
     fallbackPort,
     preferPinnedPort,
+    strictPort,
     fallbackLadder
   }: WebSocketTransportOptions) {
     this.host = host
@@ -95,6 +100,7 @@ export class WebSocketTransport implements RpcTransport {
     this.staticRoot = staticRoot
     this.fallbackPort = fallbackPort
     this.preferPinnedPort = preferPinnedPort === true
+    this.strictPort = strictPort === true
     this.fallbackLadder = fallbackLadder ?? []
   }
 
@@ -152,6 +158,10 @@ export class WebSocketTransport implements RpcTransport {
     if (this.wss) {
       return
     }
+    if (this.strictPort) {
+      await this.listenOnRequestedPortOnly()
+      return
+    }
     // Why: bind a persisted fallback first so devices paired to it aren't stranded (STA-1511); serve --port flips to pinned-first (issue #8535); then the deterministic ladder, and only then an OS-assigned port 0.
     const persistedFallbackPort =
       this.fallbackPort !== undefined && this.fallbackPort !== 0 && this.fallbackPort !== this.port
@@ -189,6 +199,20 @@ export class WebSocketTransport implements RpcTransport {
     }
     console.warn('[ws-transport] All configured ports failed to bind, using an OS-assigned port')
     await this.tryListen(0)
+  }
+
+  private async listenOnRequestedPortOnly(): Promise<void> {
+    try {
+      await this.tryListen(this.port)
+    } catch (error: unknown) {
+      if (!isPortListenFallbackError(error, this.port)) {
+        throw error
+      }
+      throw new Error(
+        `Port ${this.port} is unavailable (${errorMessage(error)}); it was requested explicitly, so no other port will be used. Free the port or pick another one.`,
+        { cause: error }
+      )
+    }
   }
 
   private createHttpServer(): HttpServer | HttpsServer {

@@ -100,6 +100,7 @@ export class RuntimeRpcLifecycle extends RuntimeRpcWebSocketDispatch {
             host,
             port: this.wsPort,
             preferPinnedPort: this.preferPinnedWsPort,
+            strictPort: this.preferPinnedWsPort,
             // Why: stable fallback port across restarts keeps paired devices' endpoints valid (STA-1511); wsPort 0 = random (E2E).
             ...(this.wsPort !== 0 ? { fallbackPort: readWsFallbackPort(this.userDataPath) } : {})
           })
@@ -115,6 +116,11 @@ export class RuntimeRpcLifecycle extends RuntimeRpcWebSocketDispatch {
           console.error('[runtime] Failed to start WebSocket transport:', error)
           this.mobileSocketWiring?.dispose()
           this.mobileSocketWiring = null
+          if (this.preferPinnedWsPort) {
+            // Why: an explicit `--port` that cannot bind must fail the launch, not serve on the Unix socket alone (#26603).
+            await socketTransport.stop().catch(() => {})
+            throw error
+          }
         }
       }
     }
@@ -177,6 +183,7 @@ export class RuntimeRpcLifecycle extends RuntimeRpcWebSocketDispatch {
     host: string
     port: number
     preferPinnedPort: boolean
+    strictPort?: boolean
     fallbackPort?: number
   }): Promise<{ transport: WebSocketTransport; endpoint: string }> {
     const deviceRegistry = this.deviceRegistry
@@ -190,6 +197,7 @@ export class RuntimeRpcLifecycle extends RuntimeRpcWebSocketDispatch {
       staticRoot: this.webClientRoot,
       ...(options.fallbackPort !== undefined ? { fallbackPort: options.fallbackPort } : {}),
       ...(options.preferPinnedPort ? { preferPinnedPort: true } : {}),
+      ...(options.strictPort ? { strictPort: true } : {}),
       fallbackLadder: wsFallbackPortLadder(this.wsPort)
     })
     const mobileSocketWiring = this.ensureMobileSocketWiring(deviceRegistry, e2eeKeypair)
