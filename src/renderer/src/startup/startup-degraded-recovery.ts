@@ -3,6 +3,10 @@ import { translate } from '@/i18n/i18n'
 import { useAppStore } from '../store'
 import { getStartupErrorFallbackUI } from '../lib/startup-ui-hydration'
 import {
+  isPairedHostUnreachableAtStartup,
+  showPairedHostUnreachableAtStartup
+} from './startup-paired-host-unreachable'
+import {
   collectTerminalProviderSnapshotPtyIds,
   refreshTerminalProviderSnapshotCapabilities
 } from '../components/terminal/terminal-provider-snapshot-capability'
@@ -65,21 +69,26 @@ export async function recoverFromDegradedStartup(args: DegradedStartupRecoveryAr
   if (fallbackUI) {
     hydratePersistedUI(fallbackUI, 'startup')
   }
-  // Why (issue #1158): sticky toast so the user knows they're in degraded "no-save" mode (hydrationSucceeded stays false); "Restart now" calls app.relaunch to recover.
-  toast.error(translate('auto.App.12e77cf12b', 'Session restore failed'), {
-    description: translate(
-      'auto.App.0a9e810705',
-      "Changes won't be saved until restart. Your previous tabs are safe on disk."
-    ),
-    duration: Infinity,
-    dismissible: true,
-    action: {
-      label: translate('auto.App.caea5b51b9', 'Restart now'),
-      onClick: () => {
-        void window.api.app.relaunch()
+  // Why: once reconnect began, state is partly restored, so keep the generic failure path.
+  if (!reconnectStarted && isPairedHostUnreachableAtStartup(error)) {
+    showPairedHostUnreachableAtStartup()
+  } else {
+    // Why (issue #1158): sticky toast so the user knows they're in degraded "no-save" mode (hydrationSucceeded stays false); "Restart now" calls app.relaunch to recover.
+    toast.error(translate('auto.App.12e77cf12b', 'Session restore failed'), {
+      description: translate(
+        'auto.App.0a9e810705',
+        "Changes won't be saved until restart. Your previous tabs are safe on disk."
+      ),
+      duration: Infinity,
+      dismissible: true,
+      action: {
+        label: translate('auto.App.caea5b51b9', 'Restart now'),
+        onClick: () => {
+          void window.api.app.relaunch()
+        }
       }
-    }
-  })
+    })
+  }
   if (reconnectStarted) {
     // Why (issue #1158): re-running reconnect over its partially-mutated state would double-set ptyIds and drain pending* twice — force the flag, clear pending*.
     forceWorkspaceSessionReady()
