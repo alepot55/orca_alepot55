@@ -11,7 +11,9 @@ export const WATCHER_IGNORE_DIRS: string[] = [
   '.cache',
   'target',
   '.venv',
-  '__pycache__'
+  '__pycache__',
+  // Why: in-repo linked worktrees get their own watcher. Keep last: macOS daemon exclusions take only the first 8.
+  '.worktrees'
 ]
 
 // Why: macOS FSEventStreamSetExclusionPaths accepts at most 8 paths and fails
