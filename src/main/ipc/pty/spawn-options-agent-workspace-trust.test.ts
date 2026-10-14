@@ -25,6 +25,8 @@ type BuildInput = {
   restored?: boolean
   claudeAuth?: ClaudeRuntimeAuthPreparation | null
   wslDistro?: string | null
+  env?: Record<string, string>
+  selectedCodexHomePath?: string | null
 }
 
 const RESTORED_PANE: AdoptStablePaneResult = {
@@ -68,16 +70,23 @@ function makeDeps(): PtySpawnIpcDeps & PtyRuntimeControllerDeps {
 function seed(
   ctx: Pick<
     PtyIpcSpawnState,
-    'env' | 'cwd' | 'launchCommand' | 'claudeAuth' | 'expectedWslDistro' | 'preAdoptedStablePane'
+    | 'env'
+    | 'cwd'
+    | 'launchCommand'
+    | 'claudeAuth'
+    | 'expectedWslDistro'
+    | 'preAdoptedStablePane'
+    | 'selectedCodexHomePath'
   >,
   input: BuildInput
 ): void {
-  ctx.env = { CLAUDE_CONFIG_DIR: '/cfg' }
+  ctx.env = { CLAUDE_CONFIG_DIR: '/cfg', ...input.env }
   ctx.cwd = input.cwd
   ctx.launchCommand = input.command
   ctx.claudeAuth = input.claudeAuth ?? null
   ctx.expectedWslDistro = input.wslDistro ?? null
   ctx.preAdoptedStablePane = input.restored ? RESTORED_PANE : null
+  ctx.selectedCodexHomePath = input.selectedCodexHomePath ?? null
 }
 
 async function build(route: 'renderer' | 'runtime', input: BuildInput, deps = makeDeps()) {
@@ -139,10 +148,27 @@ describe.each(['renderer', 'runtime'] as const)('%s spawn builder agent trust', 
     })
     expect(applyAgentWorkspaceTrust).toHaveBeenCalledWith('codex', '/repo/wt', {
       env: expect.objectContaining({ CLAUDE_CONFIG_DIR: '/cfg' }),
+      codexHome: null,
       claudeAuth: null,
       wslDistro: 'Ubuntu',
       connectionId: null
     })
+  })
+
+  it('trusts Codex in the account home a local-provider spawn adds to its env only later', async () => {
+    const accountHome = '/user-data/codex-accounts/a/home'
+    const options = await build(route, {
+      launchAgent: 'codex',
+      command: 'codex',
+      env: { CODEX_HOME: '/parent-orca/codex-home' },
+      selectedCodexHomePath: accountHome
+    })
+    expect(options.codexHomePathOverride).toEqual({ value: accountHome })
+    expect(applyAgentWorkspaceTrust).toHaveBeenCalledWith(
+      'codex',
+      '/repo/wt',
+      expect.objectContaining({ codexHome: accountHome })
+    )
   })
 
   it('trusts Codex in a floating terminal at the resolved folder it starts in', async () => {

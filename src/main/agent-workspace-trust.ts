@@ -16,6 +16,8 @@ import { getCachedWslHome } from './wsl-home-cache'
 export type AgentTrustLaunchContext = {
   /** The final spawn env, before the host's own process env. */
   env: Record<string, string | undefined> | undefined
+  /** CODEX_HOME Orca chose for a local launch; a local-provider spawn sets it in the env only later. */
+  codexHome?: string | null
   /** Managed-account auth prep for a Claude launch; names a WSL guest's config dir. */
   claudeAuth: ClaudeRuntimeAuthPreparation | null
   wslDistro: string | null
@@ -74,7 +76,7 @@ export async function applyAgentWorkspaceTrust(
           claudeAuth: context.claudeAuth,
           wslDistro: context.wslDistro
         }),
-      codexConfigFiles: () => getLocalCodexTrustConfigFiles(agentHome),
+      codexConfigFiles: () => getLocalCodexTrustConfigFiles(agentHome, context.codexHome),
       // Why: Codex queues behind a config lane it shares with Orca's hook installs.
       deadlineMs:
         preset === 'codex' ? AGENT_TRUST_WRITE_DEADLINE_MS : SHORT_AGENT_TRUST_WRITE_DEADLINE_MS

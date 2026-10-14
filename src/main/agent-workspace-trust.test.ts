@@ -88,11 +88,15 @@ describe('applyAgentWorkspaceTrust on this machine', () => {
   })
 
   it('writes per-user trust under the home the launch env names, where the agent reads it', async () => {
-    const context = { ...local, env: { HOME: '/home/agent', USERPROFILE: '/home/agent' } }
+    const context = {
+      ...local,
+      env: { HOME: '/home/agent', USERPROFILE: '/home/agent', CODEX_HOME: '/parent-orca/home' },
+      codexHome: '/accounts/a/home'
+    }
     for (const preset of ['codex', 'cursor', 'copilot', 'qoder', 'antigravity'] as const) {
       await applyAgentWorkspaceTrust(preset, WORKSPACE, context)
     }
-    expect(mocks.codexConfigFiles).toHaveBeenCalledWith('/home/agent')
+    expect(mocks.codexConfigFiles).toHaveBeenCalledWith('/home/agent', '/accounts/a/home')
     for (const writer of [mocks.cursor, mocks.copilot, mocks.qoder, mocks.antigravity]) {
       expect(writer).toHaveBeenCalledWith(WORKSPACE, '/home/agent')
     }
