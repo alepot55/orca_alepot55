@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ProcessTableRow } from '../../shared/process-table-snapshot'
-import { judgeTerminalForeground } from './terminal-foreground-group'
+import { emulateDarwinPsLocale } from '../../shared/process-table-ps-test-fixture'
+import { judgeTerminalForeground, readTerminalProcessRows } from './terminal-foreground-group'
+
+const { runProcess } = vi.hoisted(() => ({ runProcess: vi.fn() }))
+vi.mock('@orca/process-host', () => ({ runProcess }))
 
 type Row = Omit<ProcessTableRow, 'tty' | 'startTime'>
 
@@ -67,5 +71,39 @@ describe('who holds a pane’s terminal, by its foreground process group', () =>
     ['no process is in the foreground group', pane(300, [])]
   ])('proves nothing when %s', (_label, rows) => {
     expect(judgeTerminalForeground(rows, 100, 'claude')).toBe('unknown')
+  })
+})
+
+describe('reading a macOS pane’s terminal under the locale Orca was launched with', () => {
+  const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+  // `à` is C3 A0 in UTF-8, and vis(3) prints A0 as `M- `: a space inside the executable.
+  const SHELL = '/Users/càrlo/.nix-profile/bin/zsh'
+
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', hostPlatform)
+    vi.unstubAllEnvs()
+    runProcess.mockReset()
+  })
+
+  it.each<Record<string, string>>([
+    // Dock launch: no locale at all.
+    {},
+    { LANG: 'de_DE.UTF-8', LC_TIME: 'en_NZ.UTF-8' }
+  ])('reads the shell at the prompt under %o', async (locale) => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    for (const name of ['LANG', 'LC_ALL', 'LC_CTYPE', 'LC_TIME']) {
+      vi.stubEnv(name, locale[name])
+    }
+    runProcess.mockImplementation(
+      async (spec: { args: readonly string[]; env?: NodeJS.ProcessEnv }) => {
+        const { command } = emulateDarwinPsLocale(spec.env ?? process.env, SHELL)
+        const stdout = spec.args.includes('tty=') ? 'ttys003\n' : `101 1 101 101 Ss+ ${command}\n`
+        return { code: 0, signal: null, stdout, timedOut: false }
+      }
+    )
+
+    const rows = await readTerminalProcessRows(101)
+    expect(rows?.map((row) => row.command)).toEqual([SHELL])
+    expect(judgeTerminalForeground(rows ?? [], 101, 'claude')).toBe('shell')
   })
 })

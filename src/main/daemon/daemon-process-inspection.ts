@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import { parseLinuxBootTimeSeconds, parseLinuxProcStartTicks } from './daemon-process-start-time'
+import { psOutputEnv } from '../../shared/ps-output-locale'
 import type {
   LinuxStatEvidence,
   ProcessLivenessVerdict,
@@ -16,7 +17,12 @@ import {
 
 const execFileAsync = promisify(execFile)
 
-type InspectionCommandRunner = (file: string, args: string[], timeoutMs: number) => Promise<string>
+type InspectionCommandRunner = (
+  file: string,
+  args: string[],
+  timeoutMs: number,
+  env?: NodeJS.ProcessEnv
+) => Promise<string>
 
 export type DaemonProcessInspectionDependencies = {
   readTextFile?: (path: string) => Promise<string>
@@ -99,7 +105,12 @@ export async function readProcessCommandLine(
     }
   }
   try {
-    const stdout = await runCommand('ps', ['-p', String(pid), '-o', 'command='], 2_000)
+    const stdout = await runCommand(
+      'ps',
+      ['-p', String(pid), '-o', 'command='],
+      2_000,
+      psOutputEnv(platform)
+    )
     return stdout.trim() || undefined
   } catch {
     return undefined
@@ -192,7 +203,12 @@ export async function readMacosProcessStartedAtMs(
 ): Promise<number | null> {
   const runCommand = dependencies.runCommand ?? runInspectionCommand
   try {
-    const stdout = await runCommand('ps', ['-p', String(pid), '-o', 'lstart='], 2_000)
+    const stdout = await runCommand(
+      'ps',
+      ['-p', String(pid), '-o', 'lstart='],
+      2_000,
+      psOutputEnv('darwin')
+    )
     const startedAtMs = Date.parse(stdout.trim())
     return Number.isFinite(startedAtMs) ? startedAtMs : null
   } catch {
@@ -203,12 +219,14 @@ export async function readMacosProcessStartedAtMs(
 async function runInspectionCommand(
   file: string,
   args: string[],
-  timeoutMs: number
+  timeoutMs: number,
+  env?: NodeJS.ProcessEnv
 ): Promise<string> {
   const { stdout } = await execFileAsync(file, args, {
     encoding: 'utf8',
     timeout: timeoutMs,
-    windowsHide: true
+    windowsHide: true,
+    env
   })
   return stdout
 }

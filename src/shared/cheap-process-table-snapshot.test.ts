@@ -18,6 +18,7 @@ import {
   parseCheapProcessTableRows,
   ProcessTableCaptureError
 } from './process-table-snapshot'
+import { emulateDarwinPsLocale } from './process-table-ps-test-fixture'
 
 function installPs(stdout: string, outputTruncated = false): string[][] {
   const calls: string[][] = []
@@ -81,6 +82,8 @@ describe('parseCheapProcessTableRows', () => {
 })
 
 describe('getCheapProcessTableSnapshot', () => {
+  const hostPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+
   beforeEach(() => {
     runProcessMock.mockReset()
     resetCheapProcessTableSnapshotForTests()
@@ -90,6 +93,8 @@ describe('getCheapProcessTableSnapshot', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllEnvs()
+    Object.defineProperty(process, 'platform', hostPlatform)
   })
 
   it('forks ps with the cheap column set only, never tty or command', async () => {
@@ -116,6 +121,23 @@ describe('getCheapProcessTableSnapshot', () => {
     expect(runProcessMock).toHaveBeenCalledWith(
       expect.objectContaining({ maxOutputBytes: PS_MAX_BUFFER_BYTES, timeoutMs: PS_TIMEOUT_MS })
     )
+  })
+
+  it('stamps the full-capture macOS start marker under a non-US locale', async () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin' })
+    vi.stubEnv('LC_ALL', 'de_DE.UTF-8')
+    runProcessMock.mockImplementation(async (spec: { env?: NodeJS.ProcessEnv }) => ({
+      code: 0,
+      signal: null,
+      stdout: `50460 50009 50460 0 Ss ${emulateDarwinPsLocale(spec.env ?? process.env, '').lstart}\n`,
+      stderr: '',
+      timedOut: false,
+      outputTruncated: false
+    }))
+
+    const [row] = await getCheapProcessTableSnapshot()
+    // Pane fingerprints compare this marker with the full capture's, so the shapes must agree.
+    expect(row?.startTime).toBe('Sat Oct 10 00:04:51 2026')
   })
 
   it('names a clipped capture as truncated, a killed one as a timeout, and a non-zero exit by its code', async () => {
