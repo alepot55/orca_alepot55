@@ -134,13 +134,13 @@ export function createClaudeJournalTranslator(
   }
 
   const publishActivity = (kind: string, payload: unknown): void => {
-    const turnId = turn.id
-    if (turnId === null) {
+    const target = turn.activityTarget
+    if (target === null) {
       return
     }
     const text = claudeProviderFrameActivity(kind, payload)
     if (text !== undefined) {
-      deps.sink.setActivity?.(text ? { turnId, text } : null)
+      deps.sink.setActivity?.(text ? { ...target, text } : null)
     }
   }
 

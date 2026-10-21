@@ -74,19 +74,27 @@ function repeatsRecentToolLabel(text: string, labels: ReadonlySet<string>): bool
   return false
 }
 
-/** The live provider activity for this turn; callers provide the broad fallback.
+/** The live provider activity for this turn, or for a started send whose turn has not opened yet;
+ *  callers provide the broad fallback.
  *  Journal rows are history, not the present, so none of them ever becomes this line. */
 export function selectStructuredAgentTurnActivity(
   items: readonly AgentJournalRenderItem[],
   turnId: string | null,
   providerActivity?: AgentSessionTurnActivity | null
 ): NativeChatTurnActivity | null {
-  if (!turnId || providerActivity?.turnId !== turnId) {
+  if (!providerActivity) {
+    return null
+  }
+  // With no turn running, only activity the host keyed to a send whose turn is still to open applies.
+  if (turnId ? providerActivity.turnId !== turnId : providerActivity.precedesTurn !== true) {
     return null
   }
   const text = activityLine(providerActivity.text)
   if (!text) {
     return null
+  }
+  if (!turnId) {
+    return { kind: 'description', text }
   }
   const turnStartIndex = items.findLastIndex((item) => {
     const turn = readAgentJournalTurn(item.body)
