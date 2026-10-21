@@ -28,6 +28,13 @@ export function extractDroppedPtyQueryBytes(data: string): string {
   return extracted.statelessQueryData + extracted.statefulQueryData + extracted.oscColorQueryData
 }
 
+/** Output sequence the queued bytes end at; unknown once the pending cap dropped their content. */
+export function pendingPtyDataEndSeq(pending: PendingPtyData): number | undefined {
+  return typeof pending.startSeq === 'number'
+    ? pending.startSeq + (pending.rawLength ?? pending.data.length)
+    : undefined
+}
+
 export function scanDroppedMode2031Data(
   data: string,
   previous: Mode2031ReplyScanState
