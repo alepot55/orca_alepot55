@@ -11,7 +11,8 @@ import {
   unlinkSync
 } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
+import { normalizeRuntimePathForComparison } from '../../shared/cross-platform-path'
 import {
   clearCopiedResourceMarker,
   markCopiedResource,
@@ -48,11 +49,23 @@ export function getOrcaManagedCodexHomePath(): string {
 }
 
 /** Config files an Orca-launched local Codex reads trust from, in the hook installer's lock order. */
-export function getLocalCodexTrustConfigFiles(agentHome: string): string[] {
-  return [
-    join(getOrcaManagedCodexHomePath(), 'config.toml'),
-    join(agentHome, '.codex', 'config.toml')
-  ]
+export function getLocalCodexTrustConfigFiles(
+  agentHome: string,
+  launchCodexHome?: string | null
+): string[] {
+  const runtimeConfig = join(getOrcaManagedCodexHomePath(), 'config.toml')
+  const systemConfig = join(agentHome, '.codex', 'config.toml')
+  // Why: a managed account's Codex reads only its own CODEX_HOME, not the runtime mirror or ~/.codex.
+  const launchConfig =
+    launchCodexHome && isAbsolute(launchCodexHome) ? join(launchCodexHome, 'config.toml') : null
+  const isAlreadyListed = (file: string): boolean =>
+    [runtimeConfig, systemConfig].some(
+      (listed) =>
+        normalizeRuntimePathForComparison(listed) === normalizeRuntimePathForComparison(file)
+    )
+  return launchConfig && !isAlreadyListed(launchConfig)
+    ? [runtimeConfig, launchConfig, systemConfig]
+    : [runtimeConfig, systemConfig]
 }
 
 export function getCodexSessionBackfillStateDirPath(): string {

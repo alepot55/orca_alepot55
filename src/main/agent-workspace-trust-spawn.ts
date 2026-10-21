@@ -58,6 +58,7 @@ export function applyAgentWorkspaceTrustToSpawn(
   }
   return applyAgentWorkspaceTrust(preset, workspacePath, {
     env: args.env,
+    codexHome: args.codexHome,
     claudeAuth: args.claudeAuth,
     wslDistro: args.wslDistro,
     connectionId: args.connectionId

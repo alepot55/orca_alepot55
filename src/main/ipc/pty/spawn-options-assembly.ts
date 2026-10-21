@@ -190,6 +190,7 @@ export async function assemblePtySpawnLaunchOptions(input: PtySpawnLaunchOptions
     isFreshLaunch: !input.preAdoptedStablePane && launchCommand !== undefined,
     settings: input.getSettings?.(),
     env,
+    codexHome: input.selectedCodexHomePath,
     claudeAuth: input.claudeAuth,
     wslDistro: input.expectedWslDistro,
     connectionId: connectionId ?? null,
