@@ -1,4 +1,4 @@
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -117,6 +117,50 @@ describe('staging and discard preserve index authority', () => {
     expect(await readFile(path.join(repo, 'old.txt'), 'utf8')).toBe('rename content\n')
     await expect(readFile(path.join(repo, 'new.txt'), 'utf8')).rejects.toMatchObject({
       code: 'ENOENT'
+    })
+  })
+
+  describe.skipIf(process.platform === 'win32')('literal backslash filenames', () => {
+    it.each([
+      {
+        name: 'tracked docs/file.txt with untracked docs\\file.txt',
+        tracked: 'docs/file.txt',
+        untracked: 'docs\\file.txt',
+        selection: ['docs/file.txt', 'docs\\file.txt']
+      },
+      {
+        name: 'tracked docs\\file.txt with untracked docs/file.txt',
+        tracked: 'docs\\file.txt',
+        untracked: 'docs/file.txt',
+        selection: ['docs\\file.txt', 'docs/file.txt']
+      },
+      {
+        name: 'tracked docs\\file.txt with untracked docs directory',
+        tracked: 'docs\\file.txt',
+        untracked: 'docs/scratch.txt',
+        selection: ['docs\\file.txt', 'docs']
+      }
+    ])('discards $name together', async ({ tracked, untracked, selection }) => {
+      const trackedPath = path.join(repo, tracked)
+      await mkdir(path.dirname(trackedPath), { recursive: true })
+      await writeFile(trackedPath, 'committed\n')
+      gitCommit(repo, 'initial')
+      await writeFile(trackedPath, 'staged\n')
+      await git(['add', '--', `:(literal)${tracked}`])
+      await writeFile(trackedPath, 'modified\n')
+      await mkdir(path.dirname(path.join(repo, untracked)), { recursive: true })
+      await writeFile(path.join(repo, untracked), 'untracked\n')
+      await writeFile(path.join(repo, 'leave.txt'), 'unselected\n')
+
+      await bulkDiscardChanges(repo, selection)
+
+      expect(await readFile(trackedPath, 'utf8')).toBe('staged\n')
+      expect(await git(['diff', '--name-only', '-z'])).toBe('')
+      expect(await git(['diff', '--cached', '--name-only', '-z'])).toBe(`${tracked}\0`)
+      await expect(readFile(path.join(repo, untracked), 'utf8')).rejects.toMatchObject({
+        code: 'ENOENT'
+      })
+      expect(await readFile(path.join(repo, 'leave.txt'), 'utf8')).toBe('unselected\n')
     })
   })
 

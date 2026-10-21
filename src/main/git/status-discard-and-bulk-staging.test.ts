@@ -209,24 +209,35 @@ describe('bulk git helpers', () => {
     expect(rmMock).not.toHaveBeenCalled()
   })
 
-  it('preserves bulk discard action selection and original path order for path edges', async () => {
-    const filePaths = ['new', 'docs\\', '[ab].txt', 'docs///', 'new', 'src/file', 'docs\\']
-    gitExecFileAsyncMock
-      .mockResolvedValueOnce({ stdout: 'docs/readme\0src/file-extra\0[ab].txt\0' })
-      .mockResolvedValue({ stdout: '' })
+  it.each([
+    { platform: 'win32', dir: 'docs\\' },
+    { platform: 'linux', dir: 'docs/' }
+  ] as const)(
+    'preserves bulk discard action selection and original path order for path edges on $platform',
+    async ({ platform, dir }) => {
+      const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
+      const filePaths = ['new', dir, '[ab].txt', 'docs///', 'new', 'src/file', dir]
+      gitExecFileAsyncMock
+        .mockResolvedValueOnce({ stdout: 'docs/readme\0src/file-extra\0[ab].txt\0' })
+        .mockResolvedValue({ stdout: '' })
 
-    await bulkDiscardChanges('/repo', filePaths)
+      try {
+        await bulkDiscardChanges('/repo', filePaths)
+      } finally {
+        platformSpy.mockRestore()
+      }
 
-    expect(gitExecFileAsyncMock.mock.calls.map(([args]) => args)).toEqual([
-      ['ls-files', '-z', '--', ...filePaths.map((filePath) => `:(literal)${filePath}`)],
-      ['restore', '--worktree', '--pathspec-from-file=-', '--pathspec-file-nul'],
-      ['clean', '-ffdx', '--', ':(literal)new', ':(literal)new', ':(literal)src/file']
-    ])
-    expect(gitExecFileAsyncMock.mock.calls[1][1].stdin).toBe(
-      ':(literal)docs\\\0:(literal)[ab].txt\0:(literal)docs///\0:(literal)docs\\\0'
-    )
-    expect(rmMock).not.toHaveBeenCalled()
-  })
+      expect(gitExecFileAsyncMock.mock.calls.map(([args]) => args)).toEqual([
+        ['ls-files', '-z', '--', ...filePaths.map((filePath) => `:(literal)${filePath}`)],
+        ['restore', '--worktree', '--pathspec-from-file=-', '--pathspec-file-nul'],
+        ['clean', '-ffdx', '--', ':(literal)new', ':(literal)new', ':(literal)src/file']
+      ])
+      expect(gitExecFileAsyncMock.mock.calls[1][1].stdin).toBe(
+        `:(literal)${dir}\0:(literal)[ab].txt\0:(literal)docs///\0:(literal)${dir}\0`
+      )
+      expect(rmMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('handles large tracked path lists during bulk discard classification', async () => {
     const trackedStdout = Array.from({ length: 150_000 }, (_, index) => `docs/file-${index}.ts`)
