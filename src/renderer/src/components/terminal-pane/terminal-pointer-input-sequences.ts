@@ -1,3 +1,5 @@
+import type { IBuffer } from '@xterm/xterm'
+
 // Why: xterm flags pointer-derived bytes as user input alongside keystrokes; callers
 // that must treat pointer input differently need to recognise it by shape.
 
@@ -24,4 +26,11 @@ export function isXtermHoverMotionReport(data: string): boolean {
     : data.charCodeAt(3) - 32
   // Why the mask: bit 32 is motion, low bits 3 mean no button, 4/8/16 are modifiers, 64+ is wheel.
   return (button & 0xe3) === 0x23
+}
+
+/** True for bytes a pointer produced: a mouse report, or a wheel notch on the alt screen (whose cursor keys look identical). */
+export function isXtermPointerInput(data: string, activeBufferType: IBuffer['type']): boolean {
+  return (
+    isXtermMouseReport(data) || (activeBufferType === 'alternate' && isXtermWheelCursorKey(data))
+  )
 }

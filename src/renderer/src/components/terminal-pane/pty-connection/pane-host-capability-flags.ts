@@ -9,6 +9,7 @@ import {
 } from '@/lib/windows-terminal-capabilities'
 import { requestTerminalWritePipelineProbe } from '@/lib/pane-manager/terminal-write-pipeline-health'
 import { subscribeToTerminalUserInput } from '../terminal-user-input-signal'
+import { isXtermPointerInput } from '../terminal-pointer-input-sequences'
 import {
   isLocalNativeWindowsConpty,
   resolveWindowsShellOverride
@@ -255,8 +256,6 @@ export function installPaneHostCapabilityFlags(session: ConnectPanePtySession): 
   // solely as the fallback when the internal API is unavailable.
   session.recordRealUserTerminalInput = (): void => {
     session.recordTerminalInputForHibernation()
-    // Takeover must never fire from the onData fallback below: it mixes in auto-replies.
-    reportWorkerTerminalUserInput(session.cacheKey, session.runtimeEnvironmentId)
   }
   session.userInputActivityDisposable = subscribeToTerminalUserInput(
     session.pane.terminal,
@@ -265,6 +264,12 @@ export function installPaneHostCapabilityFlags(session: ConnectPanePtySession): 
   session.recordTerminalInputForHibernationFallback = (): void => {
     if (session.userInputActivityDisposable === null) {
       session.recordTerminalInputForHibernation()
+    }
+  }
+  // Why: viewing must not take a worker over; xterm flags wheel/click/hover (not replies) as input.
+  session.reportWorkerTerminalTakeoverInput = (data: string, wasUserInput: boolean): void => {
+    if (wasUserInput && !isXtermPointerInput(data, session.pane.terminal.buffer.active.type)) {
+      reportWorkerTerminalUserInput(session.cacheKey, session.runtimeEnvironmentId)
     }
   }
 }
