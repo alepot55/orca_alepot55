@@ -647,6 +647,59 @@ export function registerPtyConnectionVisibilityResumeSizeTests(): void {
         binding.dispose()
       })
 
+      it('waits for a reloaded pane box before claiming the remote PTY size (#27104)', async () => {
+        ;(globalThis as { document?: Document }).document = {
+          visibilityState: 'visible',
+          hasFocus: vi.fn(() => true)
+        } as unknown as Document
+        globalThis.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+          queueMicrotask(() => callback(0))
+          return 1
+        })
+        const { setFitOverride } = await import('@/lib/pane-manager/mobile-fit-overrides')
+        const ptyId = 'remote:env-1@@terminal-reload'
+        const pane = createPane(2)
+        const observer = installObservedPane(pane)
+        // A just-reloaded page has not laid the pane out yet: FitAddon proposes its 2x1 minimum.
+        let box = { width: 0, height: 0 }
+        let proposedGrid = { cols: 2, rows: 1 }
+        Object.defineProperty(pane.container, 'getBoundingClientRect', { value: () => box })
+        pane.fitAddon = {
+          ...pane.fitAddon,
+          proposeDimensions: vi.fn(() => proposedGrid)
+        } as never
+        try {
+          const { connectPanePty } = await import('./pty-connection')
+          const transport = createMockTransport(ptyId)
+          transportFactoryQueue.push(transport)
+          const deps = createDeps({
+            restoredLeafId: LEAF_2,
+            restoredPtyIdByLeafId: { [LEAF_2]: ptyId },
+            paneTransportsRef: { current: new Map([[1, createMockTransport('pty-pane-1')]]) }
+          })
+          // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the pane fixtures model every member connectPanePty reads, as in the sibling claim test.
+          connectPanePty(pane as never, createManager(2) as never, deps as never)
+          await flushAsyncTicks()
+          transport.claimViewport.mockClear()
+          transport.resize.mockClear()
+
+          // The host's passive hold lands before layout: claiming now would send the collapsed 2x1.
+          setFitOverride(ptyId, 'remote-desktop-fit', 132, 42)
+          expect(transport.claimViewport).not.toHaveBeenCalled()
+
+          box = { width: 1000, height: 800 }
+          proposedGrid = { cols: 132, rows: 42 }
+          observer.trigger()
+          await flushAsyncTicks()
+
+          expect(transport.claimViewport).not.toHaveBeenCalled()
+          expect(transport.resize).toHaveBeenCalledExactlyOnceWith(132, 42, { claim: true })
+        } finally {
+          setFitOverride(ptyId, 'desktop-fit', 0, 0)
+          observer.restore()
+        }
+      })
+
       it('does NOT re-assert while a mobile-fit override parks the PTY at phone dims', async () => {
         const { setFitOverride } = await import('@/lib/pane-manager/mobile-fit-overrides')
         vi.mocked(window.api.pty.getSize).mockResolvedValue({ cols: 80, rows: 24 })

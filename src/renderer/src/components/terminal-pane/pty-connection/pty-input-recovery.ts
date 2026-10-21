@@ -7,6 +7,7 @@ import { toAgentLaunchPreferences } from '../../../../../shared/agent-launch-pre
 import { createUnresolvedOwnerPtyTransport } from '../unresolved-owner-pty-transport'
 import { recordTerminalTabParkedOnUnresolvedHost } from '@/lib/parked-terminal-host-hydration'
 import { getFitOverrideForPty, onOverrideChange } from '@/lib/pane-manager/mobile-fit-overrides'
+import { canMeasurePaneForFit } from '@/lib/pane-manager/pane-fit'
 import { isPtyLocked } from '@/lib/pane-manager/mobile-driver-state'
 import { isPaneReplaying } from '../replay-guard'
 import { registerUndeliverableWriteHandler } from '@/lib/pane-manager/terminal-write-pipeline-health'
@@ -149,6 +150,10 @@ export function installPtyInputRecovery(session: ConnectPanePtySession): void {
     // Why: TUIs re-arm DECSET 1004 on every SIGWINCH and xterm answers with a focus report; claiming
     // on it made two mirrors of different grids take the PTY from each other forever (#26469).
     if (input !== undefined && isPassiveTerminalInputReport(input)) {
+      return
+    }
+    // Why: a reload hold can precede layout (2x1 proposal); a later box, input or reveal claims.
+    if (!canMeasurePaneForFit(session.pane)) {
       return
     }
     let proposed: { cols: number; rows: number } | undefined
