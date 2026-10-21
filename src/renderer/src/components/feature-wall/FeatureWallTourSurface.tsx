@@ -29,6 +29,7 @@ import { FeatureWallContinueButton } from './FeatureWallContinueButton'
 import { FeatureWallTourPanel } from './FeatureWallTourPanel'
 import { getFeatureWallActiveStepCopy } from './feature-wall-active-step-copy'
 import { getScreenSubmitModifierLabel } from '@/lib/screen-submit-shortcut'
+import { translate } from '@/i18n/i18n'
 import { useFeatureWallTourKeyboardShortcut } from './use-feature-wall-tour-keyboard-shortcut'
 import { useFeatureWallTourRailKeydown } from './use-feature-wall-tour-rail-keydown'
 
@@ -54,7 +55,10 @@ export function FeatureWallTourSurface({
   className,
   panelClassName,
   doneLabel = 'Done',
-  footerText = 'Reopen any time from Help > Explore Orca.',
+  footerText = translate(
+    'auto.components.feature.wall.FeatureWallTourSurface.footerReopen',
+    'Reopen any time from Help > Explore Orca.'
+  ),
   enableKeyboardShortcut = true,
   compactRail = false,
   detachedFooter = false,

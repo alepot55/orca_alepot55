@@ -42,29 +42,53 @@ function formatSummary(report: CrashReportRecord): string {
 
 function getDialogTitle(report: CrashReportRecord | null): string {
   if (!report) {
-    return 'Report a crash'
+    return translate('auto.components.crash.report.CrashReportDialog.titleManual', 'Report a crash')
   }
-  return report && isReactErrorBoundaryReport(report)
-    ? 'Orca hit a recoverable UI error'
-    : 'Orca closed unexpectedly'
+  return isReactErrorBoundaryReport(report)
+    ? translate(
+        'auto.components.crash.report.CrashReportDialog.titleRendererError',
+        'Orca hit a recoverable UI error'
+      )
+    : translate(
+        'auto.components.crash.report.CrashReportDialog.titleCrashed',
+        'Orca closed unexpectedly'
+      )
 }
 
 function getDialogDescription(report: CrashReportRecord | null): string {
   if (!report) {
-    return 'Send a privacy-safe crash report. Recent redacted diagnostic logs are included when available.'
+    return translate(
+      'auto.components.crash.report.CrashReportDialog.descriptionManual',
+      'Send a privacy-safe crash report. Recent redacted diagnostic logs are included when available.'
+    )
   }
-  return report && isReactErrorBoundaryReport(report)
-    ? 'Send a privacy-safe diagnostic report to help us understand the failed UI surface.'
-    : 'Send a privacy-safe diagnostic report to help us understand what happened.'
+  return isReactErrorBoundaryReport(report)
+    ? translate(
+        'auto.components.crash.report.CrashReportDialog.descriptionRendererError',
+        'Send a privacy-safe diagnostic report to help us understand the failed UI surface.'
+      )
+    : translate(
+        'auto.components.crash.report.CrashReportDialog.descriptionCrashed',
+        'Send a privacy-safe diagnostic report to help us understand what happened.'
+      )
 }
 
 function getNotesPlaceholder(report: CrashReportRecord | null): string {
   if (!report) {
-    return 'Optional: what happened?'
+    return translate(
+      'auto.components.crash.report.CrashReportDialog.placeholderManual',
+      'Optional: what happened?'
+    )
   }
-  return report && isReactErrorBoundaryReport(report)
-    ? 'Optional: what were you doing before this UI error?'
-    : 'Optional: what were you doing before Orca closed?'
+  return isReactErrorBoundaryReport(report)
+    ? translate(
+        'auto.components.crash.report.CrashReportDialog.placeholderRendererError',
+        'Optional: what were you doing before this UI error?'
+      )
+    : translate(
+        'auto.components.crash.report.CrashReportDialog.placeholderCrashed',
+        'Optional: what were you doing before Orca closed?'
+      )
 }
 
 type CrashReportDialogSurfaceProps = {
