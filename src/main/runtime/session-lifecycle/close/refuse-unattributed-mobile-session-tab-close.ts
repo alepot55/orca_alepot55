@@ -20,7 +20,7 @@ export abstract class OrcaRuntimeWithRefuseUnattributedMobileSessionTabClose ext
     // restores it without granting an unattributed request destructive authority.
     this.republishMobileSessionTabsSnapshot(snapshot.worktree)
     return {
-      closed: true,
+      closed: false,
       refused: true,
       refusalReason: 'missing-intent',
       snapshotRepublished: true

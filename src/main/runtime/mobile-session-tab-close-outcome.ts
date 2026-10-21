@@ -49,8 +49,9 @@ export function refusedMobileSessionTabClose(
   refusalReason: MobileSessionTabCloseRefusalReason,
   options: { snapshotRepublished?: boolean } = {}
 ): MobileSessionTabCloseOutcome {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the brand is type-only and this constructor is the sole refusal builder.
   return {
-    closed: true,
+    closed: false,
     refused: true,
     refusalReason,
     ...(options.snapshotRepublished ? { snapshotRepublished: true as const } : {})

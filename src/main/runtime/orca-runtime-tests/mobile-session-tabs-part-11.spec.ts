@@ -107,7 +107,7 @@ describe('OrcaRuntimeService', () => {
         unsubscribe()
         // No destructive branch may run: no PTY kill, no renderer close relay.
         expect(result).toEqual({
-          closed: true,
+          closed: false,
           refused: true,
           refusalReason: 'live-host-pty',
           snapshotRepublished: true
@@ -188,7 +188,7 @@ describe('OrcaRuntimeService', () => {
       })
 
       expect(result).toEqual({
-        closed: true,
+        closed: false,
         refused: true,
         refusalReason: 'live-host-pty',
         snapshotRepublished: true
@@ -220,7 +220,7 @@ describe('OrcaRuntimeService', () => {
       const after = await runtime.listMobileSessionTabs(`id:${TEST_WORKTREE_ID}`)
 
       expect(result).toEqual({
-        closed: true,
+        closed: false,
         refused: true,
         refusalReason: 'missing-intent',
         snapshotRepublished: true
@@ -246,7 +246,7 @@ describe('OrcaRuntimeService', () => {
       })
 
       expect(result).toEqual({
-        closed: true,
+        closed: false,
         refused: true,
         refusalReason: 'stale-publication',
         snapshotRepublished: true
@@ -267,7 +267,7 @@ describe('OrcaRuntimeService', () => {
       })
 
       expect(result).toEqual({
-        closed: true,
+        closed: false,
         refused: true,
         refusalReason: 'stale-terminal',
         snapshotRepublished: true
@@ -295,7 +295,7 @@ describe('OrcaRuntimeService', () => {
       })
 
       expect(result).toEqual({
-        closed: true,
+        closed: false,
         refused: true,
         refusalReason: 'retirement-owner'
       })
@@ -421,7 +421,7 @@ describe('OrcaRuntimeService', () => {
 
       unsubscribe()
       expect(result).toEqual({
-        closed: true,
+        closed: false,
         refused: true,
         refusalReason: 'live-host-pty'
       })
@@ -578,7 +578,7 @@ describe('OrcaRuntimeService', () => {
       })
 
       expect(result).toEqual({
-        closed: true,
+        closed: false,
         refused: true,
         refusalReason: 'unknown-liveness',
         snapshotRepublished: true
