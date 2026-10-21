@@ -1,5 +1,9 @@
 import type { StateCreator } from 'zustand'
-import type { RateLimitRuntimeTarget, RateLimitState } from '../../../../shared/rate-limit-types'
+import type {
+  CodexRateLimitResetOutcome,
+  RateLimitRuntimeTarget,
+  RateLimitState
+} from '../../../../shared/rate-limit-types'
 import { createEmptyRateLimitState } from '../../../../shared/rate-limit-state-factory'
 import type { AppState } from '../types'
 
@@ -10,7 +14,7 @@ export type RateLimitSlice = {
   refreshGrokRateLimits: () => Promise<void>
   refreshClaudeRateLimitsForTarget: (target: RateLimitRuntimeTarget) => Promise<void>
   refreshCodexRateLimitsForTarget: (target: RateLimitRuntimeTarget) => Promise<void>
-  consumeCodexRateLimitResetCredit: () => Promise<void>
+  consumeCodexRateLimitResetCredit: () => Promise<CodexRateLimitResetOutcome>
   fetchInactiveClaudeAccountUsage: () => Promise<void>
   fetchInactiveCodexAccountUsage: () => Promise<void>
   setRateLimitsFromPush: (state: RateLimitState) => void
@@ -110,6 +114,7 @@ export const createRateLimitSlice: StateCreator<AppState, [], [], RateLimitSlice
     try {
       const result = await window.api.rateLimits.consumeCodexResetCredit()
       set({ rateLimits: result.state })
+      return result.outcome
     } catch (error) {
       console.error('Failed to consume Codex rate-limit reset:', error)
       throw error
