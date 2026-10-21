@@ -5,7 +5,7 @@ import {
 import { iterateTerminalOutputFrameChunks } from '../../terminal-output-frame-chunks'
 import { TERMINAL_MULTIPLEX_ACK_STREAM_INITIAL_WINDOW_BYTES } from '../../../../../shared/terminal-multiplex-flow-control'
 import { createTerminalOutputBatcher } from './terminal-output-batcher'
-import { appendPendingMultiplexOutput } from './terminal-stream-replay'
+import { appendPendingMultiplexOutput, createPendingReplyQueries } from './terminal-stream-replay'
 import { updateViewportForClient } from './terminal-viewport-update'
 import { notePausedOutputDropped } from './terminal-multiplex-paused-output-drop'
 import {
@@ -58,6 +58,7 @@ export async function initializeMultiplexStream(
     pendingOutput: [],
     pendingOutputBytes: 0,
     pendingOutputOverflowed: false,
+    initialSnapshotQueries: createPendingReplyQueries(),
     lastResizeCols: undefined,
     resizeGeneration: 0,
     outputBatcher: createTerminalOutputBatcher((data, meta) => {

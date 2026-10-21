@@ -1,4 +1,8 @@
-import type { TerminalReplyQuerySequence } from '../../../../../shared/terminal-reply-query-scan'
+import {
+  EMPTY_TERMINAL_REPLY_QUERY_SCAN_STATE,
+  scanTerminalReplyQuerySequences,
+  type TerminalReplyQuerySequence
+} from '../../../../../shared/terminal-reply-query-scan'
 import {
   iterateTerminalOutputFrameChunks,
   type TerminalOutputFrameChunk,
@@ -9,13 +13,76 @@ import {
   terminalStreamByteLength
 } from '../../terminal-stream-byte-length'
 import { TERMINAL_MULTIPLEX_PENDING_MAX_BYTES } from '../../../../../shared/terminal-multiplex-flow-control'
-import type { TerminalMultiplexStream, TerminalOutputChunk } from './terminal-stream-types'
+import type {
+  PendingReplyQueries,
+  TerminalMultiplexStream,
+  TerminalOutputChunk
+} from './terminal-stream-types'
+
+export const TERMINAL_QUERY_REPLAY_MAX_CHARS = 16 * 1024
+
+export function createPendingReplyQueries(): PendingReplyQueries {
+  return {
+    scanState: EMPTY_TERMINAL_REPLY_QUERY_SCAN_STATE,
+    sequences: [],
+    chars: 0,
+    overflowed: false
+  }
+}
+
+function capturePendingReplyQueries(
+  queries: PendingReplyQueries,
+  data: string,
+  meta?: TerminalOutputMeta
+): void {
+  if (queries.overflowed) {
+    return
+  }
+  if (typeof meta?.seq !== 'number' || meta.rawLength !== data.length) {
+    queries.scanState = EMPTY_TERMINAL_REPLY_QUERY_SCAN_STATE
+    return
+  }
+  const scan = scanTerminalReplyQuerySequences(data, meta.seq - data.length, queries.scanState)
+  queries.scanState = scan.state
+  for (const query of scan.queries) {
+    if (queries.chars + query.data.length > TERMINAL_QUERY_REPLAY_MAX_CHARS) {
+      queries.overflowed = true
+      return
+    }
+    queries.sequences.push(query)
+    queries.chars += query.data.length
+  }
+}
+
+/** Queries the snapshot fully covers (all of them when buffered output was dropped), in stream order. */
+export function getSnapshotQueryReplayData(
+  queries: PendingReplyQueries | null,
+  snapshotSeq: number | undefined,
+  outputDropped: boolean,
+  pendingEscapeTailAnsi: string | undefined
+): string {
+  if (!queries || queries.overflowed) {
+    return ''
+  }
+  // Why endSeq: a query split by the snapshot completes live from its pendingEscapeTailAnsi.
+  const replay = queries.sequences
+    .filter(
+      (query) => outputDropped || (typeof snapshotSeq === 'number' && query.endSeq <= snapshotSeq)
+    )
+    .map((query) => query.data)
+    .join('')
+  // Why: the replay's ESC aborts the tail the client wrote last; re-arm it so the next live chunk still completes it (#7329).
+  return replay && replay + (pendingEscapeTailAnsi ?? '')
+}
 
 export function appendPendingMultiplexOutput(
   stream: TerminalMultiplexStream,
   data: string,
   meta?: TerminalOutputMeta
 ): void {
+  if (stream.initialSnapshotQueries) {
+    capturePendingReplyQueries(stream.initialSnapshotQueries, data, meta)
+  }
   const remainingBudget = Math.max(
     1,
     TERMINAL_MULTIPLEX_PENDING_MAX_BYTES - stream.pendingOutputBytes

@@ -13,7 +13,10 @@ import {
 import { TERMINAL_MULTIPLEX_PENDING_MAX_BYTES } from '../../../../../shared/terminal-multiplex-flow-control'
 import { measureTerminalStreamByteLength } from '../../terminal-stream-byte-length'
 import { createTerminalOutputBatcher, type TerminalOutputBatcher } from './terminal-output-batcher'
-import { trimPendingOutputToBudget } from './terminal-stream-replay'
+import {
+  TERMINAL_QUERY_REPLAY_MAX_CHARS,
+  trimPendingOutputToBudget
+} from './terminal-stream-replay'
 import { allocateTerminalSubscriptionStreamId } from './terminal-subscription-stream-id'
 import type {
   TerminalSubscribeBinaryState,
@@ -23,7 +26,6 @@ import type { TerminalOutputChunk } from './terminal-stream-types'
 import { publishTerminalSubscribeBinarySnapshot } from './terminal-subscribe-binary-snapshot'
 import { activateTerminalSubscribeBinaryLive } from './terminal-subscribe-binary-live'
 import { registerTerminalSubscribeBinaryControlFrames } from './terminal-subscribe-binary-control-frames'
-const TERMINAL_QUERY_REPLAY_MAX_CHARS = 16 * 1024
 export async function runTerminalBinarySubscription(args: TerminalSubscriptionArgs): Promise<void> {
   const { runtime, registration, sendBinary, ptyId, clientId, isMobile } = args
   if (!sendBinary) {

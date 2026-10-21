@@ -71,6 +71,117 @@ describe('terminal multiplex RPC', () => {
     await harness.dispatchPromise
   })
 
+  it('delivers each terminal query to the attaching viewer once, including ones the snapshot covers', async () => {
+    let dataListener: ((data: string, meta?: RuntimeTerminalDataMeta) => void) | undefined
+    let resolveSnapshot: (value: {
+      data: string
+      cols: number
+      rows: number
+      seq: number
+    }) => void = () => {}
+    const harness = startDesktopMultiplexSubscribe({
+      serializeTerminalBuffer: vi.fn(
+        () =>
+          new Promise<{ data: string; cols: number; rows: number; seq: number }>((resolve) => {
+            resolveSnapshot = resolve
+          })
+      ),
+      subscribeToTerminalData: vi.fn((_ptyId, listener) => {
+        dataListener = listener
+        return vi.fn()
+      })
+    })
+    await vi.waitFor(() => expect(harness.handlers.has(0)).toBe(true))
+    sendDesktopMultiplexSubscribe(harness.handlers)
+    await vi.waitFor(() => expect(harness.runtime.serializeTerminalBuffer).toHaveBeenCalled())
+
+    // Main's model yielded both queries to the viewer at ingestion; the snapshot covers the first.
+    const covered = 'orb> \x1b[6n'
+    const uncovered = 'more\x1b[c'
+    dataListener?.(covered, { seq: covered.length, rawLength: covered.length })
+    const endSeq = covered.length + uncovered.length
+    dataListener?.(uncovered, { seq: endSeq, rawLength: uncovered.length })
+    resolveSnapshot({ data: 'orb> ', cols: 120, rows: 40, seq: covered.length })
+
+    const outputText = (): string =>
+      harness.binaryFrames
+        .map(decodeTerminalStreamFrame)
+        .filter((frame) => frame?.opcode === TerminalStreamOpcode.Output)
+        .map((frame) => (frame ? decodeTerminalStreamText(frame.payload) : ''))
+        .join('')
+    await vi.waitFor(() => expect(outputText()).toContain(uncovered))
+    expect(outputText().split('\x1b[6n')).toHaveLength(2)
+    expect(outputText().split('\x1b[c')).toHaveLength(2)
+    // Seq 0 means unsequenced: the client's snapshot-seq trimming must not slice the replay off.
+    const replayFrame = harness.binaryFrames
+      .map(decodeTerminalStreamFrame)
+      .find(
+        (frame) =>
+          frame?.opcode === TerminalStreamOpcode.Output &&
+          decodeTerminalStreamText(frame.payload).includes('\x1b[6n')
+      )
+    expect(replayFrame?.seq).toBe(0)
+
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
+    await harness.dispatchPromise
+  })
+
+  it('re-arms the snapshot escape tail after the query replay so a split query still completes', async () => {
+    let dataListener: ((data: string, meta?: RuntimeTerminalDataMeta) => void) | undefined
+    let resolveSnapshot: (value: {
+      data: string
+      cols: number
+      rows: number
+      seq: number
+      pendingEscapeTailAnsi: string
+    }) => void = () => {}
+    const harness = startDesktopMultiplexSubscribe({
+      serializeTerminalBuffer: vi.fn(
+        () =>
+          new Promise<{
+            data: string
+            cols: number
+            rows: number
+            seq: number
+            pendingEscapeTailAnsi: string
+          }>((resolve) => {
+            resolveSnapshot = resolve
+          })
+      ),
+      subscribeToTerminalData: vi.fn((_ptyId, listener) => {
+        dataListener = listener
+        return vi.fn()
+      })
+    })
+    await vi.waitFor(() => expect(harness.handlers.has(0)).toBe(true))
+    sendDesktopMultiplexSubscribe(harness.handlers)
+    await vi.waitFor(() => expect(harness.runtime.serializeTerminalBuffer).toHaveBeenCalled())
+
+    // The snapshot covers 'x \x1b[c' and ends inside '\x1b[6n', which it ships as its escape tail.
+    dataListener?.('x \x1b[c', { seq: 5, rawLength: 5 })
+    dataListener?.('\x1b[6', { seq: 8, rawLength: 3 })
+    dataListener?.('n tail', { seq: 14, rawLength: 6 })
+    resolveSnapshot({ data: 'x ', cols: 120, rows: 40, seq: 8, pendingEscapeTailAnsi: '\x1b[6' })
+
+    const outputFrames = (): { seq: number; text: string }[] =>
+      harness.binaryFrames
+        .map(decodeTerminalStreamFrame)
+        .filter((frame) => frame?.opcode === TerminalStreamOpcode.Output)
+        .map((frame) => ({
+          seq: frame?.seq ?? -1,
+          text: frame ? decodeTerminalStreamText(frame.payload) : ''
+        }))
+    await vi.waitFor(() => expect(outputFrames()).toHaveLength(2))
+    // Client writes the tail last; the replay's ESC aborts it, so the replay must end by rewriting it.
+    expect(outputFrames()).toEqual([
+      { seq: 0, text: '\x1b[c\x1b[6' },
+      { seq: 14, text: 'n tail' }
+    ])
+
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
+    await harness.dispatchPromise
+  })
+
   it('flushes output buffered during initial multiplex snapshot once', async () => {
     vi.useFakeTimers()
     try {
