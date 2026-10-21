@@ -166,6 +166,64 @@ describe('orchestration RPC methods', () => {
       )
     })
 
+    it('warns on the receipt and the worktree effect when an omitted --worktree defaults to the caller worktree', async () => {
+      setup()
+      mockCurrentWorkerStart()
+      const task = db.createTask({ spec: 'omit --worktree' })
+      const implicitWorktreeWarning = expect.stringContaining('No --worktree was passed')
+
+      const result = await call('orchestration.workerStart', {
+        task: task.id,
+        from: 'term_coord',
+        agent: 'codex'
+      })
+
+      expect(result).toMatchObject({
+        state: 'ready',
+        // The plain CLI prints only this top-level line for a ready start.
+        warning: implicitWorktreeWarning,
+        effects: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'worktree',
+            action: 'reused',
+            id: 'repo::worktree',
+            warning: implicitWorktreeWarning
+          })
+        ])
+      })
+      // The stored dispatch keeps the warning, so worker-show explains the placement later.
+      const persistedEffects = JSON.parse(
+        db.getWorkerDispatch(db.getDispatchContext(task.id)!.id)!.effects
+      )
+      expect(persistedEffects).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'worktree', warning: implicitWorktreeWarning })
+        ])
+      )
+    })
+
+    it('does not warn when --worktree current is passed explicitly', async () => {
+      setup()
+      mockCurrentWorkerStart()
+      const task = db.createTask({ spec: 'explicit current' })
+
+      const result = await call('orchestration.workerStart', {
+        task: task.id,
+        from: 'term_coord',
+        worktree: 'current',
+        agent: 'codex'
+      })
+
+      expect(result).toMatchObject({
+        state: 'ready',
+        effects: expect.arrayContaining([
+          expect.objectContaining({ kind: 'worktree', action: 'reused', id: 'repo::worktree' })
+        ])
+      })
+      expect(JSON.stringify(result)).not.toContain('No --worktree was passed')
+      expect(result).not.toHaveProperty('warning')
+    })
+
     it('applies and reports opaque per-invocation model preferences', async () => {
       setup()
       mockCurrentWorkerStart()
@@ -282,28 +340,48 @@ describe('orchestration RPC methods', () => {
       })
       const task = db.createTask({ spec: 'keep working if reveal fails' })
 
-      const result = (await call('orchestration.workerStart', {
+      const result = await call('orchestration.workerStart', {
         task: task.id,
         from: 'term_coord',
+        worktree: 'current',
         agent: 'codex'
-      })) as {
-        state: string
-        warning?: string
-        effects: { kind: string; surface?: string; warning?: string }[]
-      }
+      })
 
       expect(result).toMatchObject({
         state: 'ready',
+        warning: 'Terminal term_worker is running but could not be revealed.',
+        effects: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'terminal',
+            surface: 'background',
+            warning: 'Terminal term_worker is running but could not be revealed.'
+          })
+        ])
+      })
+      expect(runtime.sendTerminalAgentPrompt).toHaveBeenCalled()
+    })
+
+    it('keeps both the implicit-worktree and the reveal warning on the top-level warning', async () => {
+      setup()
+      mockCurrentWorkerStart()
+      vi.mocked(runtime.createTerminal).mockResolvedValue({
+        handle: 'term_worker',
+        worktreeId: 'repo::worktree',
+        title: 'worker',
+        surface: 'background',
         warning: 'Terminal term_worker is running but could not be revealed.'
       })
-      expect(result.effects).toContainEqual(
-        expect.objectContaining({
-          kind: 'terminal',
-          surface: 'background',
-          warning: 'Terminal term_worker is running but could not be revealed.'
-        })
-      )
-      expect(runtime.sendTerminalAgentPrompt).toHaveBeenCalled()
+      const task = db.createTask({ spec: 'omit --worktree and fail to reveal' })
+
+      const result = await call('orchestration.workerStart', {
+        task: task.id,
+        from: 'term_coord',
+        agent: 'codex'
+      })
+
+      expect(result).toMatchObject({
+        warning: expect.stringMatching(/No --worktree was passed.*could not be revealed/)
+      })
     })
 
     it('starts in an exact existing worktree from a floating coordinator', async () => {

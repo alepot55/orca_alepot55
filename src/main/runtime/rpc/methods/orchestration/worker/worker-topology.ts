@@ -39,6 +39,31 @@ export type WorkerSetupReceipt = {
     | 'not_applicable'
 }
 
+const IMPLICIT_CALLER_WORKTREE_WARNING =
+  "No --worktree was passed, so the worker shares the caller's own worktree. Pass --worktree <selector|new-child|new-top-level> to place it elsewhere, or --worktree current to confirm this."
+
+/** An omitted `--worktree` silently means the caller's worktree; flag it so it is not read as a chosen reuse. */
+export function reusedWorktreeEffects(id: string, worktreeOmitted: boolean): WorkerEffect[] {
+  return [
+    {
+      kind: 'worktree',
+      action: 'reused',
+      id,
+      ...(worktreeOmitted ? { warning: IMPLICIT_CALLER_WORKTREE_WARNING } : {})
+    },
+    { kind: 'setup', action: 'not_applicable', state: 'not_applicable' }
+  ]
+}
+
+/** The plain CLI prints only a receipt's top-level `warning`, so the worktree effect's is mirrored there. */
+export function workerStartReceiptWarning(
+  effects: WorkerEffect[],
+  terminalRevealWarning: string | undefined
+): string | undefined {
+  const worktreeWarning = effects.find((effect) => effect.kind === 'worktree')?.warning
+  return [worktreeWarning, terminalRevealWarning].filter(Boolean).join(' ') || undefined
+}
+
 export function requireWorkerAuthority(runtime: OrcaRuntimeService, terminalHandle: string) {
   const authority = runtime.getOrchestrationDispatchAuthority(terminalHandle)
   const paneKey = authority?.paneKey ?? runtime.getTerminalPaneKey(terminalHandle)
